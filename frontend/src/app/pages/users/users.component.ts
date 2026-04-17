@@ -46,7 +46,7 @@ import { UserDialogComponent } from './user-dialog.component';
 
           <ng-container matColumnDef="height_cm">
             <th mat-header-cell *matHeaderCellDef>Height</th>
-            <td mat-cell *matCellDef="let user">{{ user.height_cm }} cm</td>
+            <td mat-cell *matCellDef="let user">{{ units.formatHeight(user.height_cm) }}</td>
           </ng-container>
 
           <ng-container matColumnDef="expected_weight_kg">

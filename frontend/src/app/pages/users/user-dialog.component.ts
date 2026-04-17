@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { ScaleUser } from '../../models/user.model';
+import { UnitService } from '../../services/unit.service';
 
 @Component({
   selector: 'app-user-dialog',
@@ -44,18 +45,18 @@ import { ScaleUser } from '../../models/user.model';
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Height (cm)</mat-label>
-        <input matInput type="number" [(ngModel)]="form.height_cm" required>
+        <mat-label>Height ({{ units.isLbs() ? 'inches' : 'cm' }})</mat-label>
+        <input matInput type="number" [(ngModel)]="displayHeight" required>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Expected Weight (kg)</mat-label>
-        <input matInput type="number" [(ngModel)]="form.expected_weight_kg" required>
+        <mat-label>Expected Weight ({{ units.weightUnit() }})</mat-label>
+        <input matInput type="number" [(ngModel)]="displayWeight" required>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Tolerance (kg)</mat-label>
-        <input matInput type="number" [(ngModel)]="form.weight_tolerance_kg" required>
+        <mat-label>Tolerance ({{ units.weightUnit() }})</mat-label>
+        <input matInput type="number" [(ngModel)]="displayTolerance" required>
       </mat-form-field>
 
       @if (data) {
@@ -75,7 +76,11 @@ import { ScaleUser } from '../../models/user.model';
   `]
 })
 export class UserDialogComponent {
+  units = inject(UnitService);
   form: Partial<ScaleUser>;
+  displayHeight = 0;
+  displayWeight = 0;
+  displayTolerance = 0;
 
   constructor(
     public dialogRef: MatDialogRef<UserDialogComponent>,
@@ -90,17 +95,22 @@ export class UserDialogComponent {
       weight_tolerance_kg: 5,
       is_active: true,
     };
+    this.displayHeight = +this.units.convertHeight(this.form.height_cm ?? 170).toFixed(1);
+    this.displayWeight = +this.units.convertWeight(this.form.expected_weight_kg ?? 70).toFixed(1);
+    this.displayTolerance = +this.units.convertWeight(this.form.weight_tolerance_kg ?? 5).toFixed(1);
   }
 
   isValid(): boolean {
     return !!(this.form.name && this.form.date_of_birth && this.form.sex
-      && this.form.height_cm && this.form.expected_weight_kg != null
-      && this.form.weight_tolerance_kg != null);
+      && this.form.height_cm && this.displayWeight > 0
+      && this.displayTolerance != null);
   }
 
   save(): void {
-    if (this.isValid()) {
-      this.dialogRef.close(this.form);
-    }
+    if (!this.isValid()) return;
+    this.form.height_cm = this.units.heightToCm(this.displayHeight);
+    this.form.expected_weight_kg = this.units.weightToKg(this.displayWeight);
+    this.form.weight_tolerance_kg = this.units.weightToKg(this.displayTolerance);
+    this.dialogRef.close(this.form);
   }
 }
