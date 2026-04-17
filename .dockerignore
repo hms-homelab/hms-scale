@@ -1,0 +1,13 @@
+build/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+.git/
+.claude/
+.playwright-mcp/
+*.o
+*.d
+.vscode/
+.idea/
+config.json
+hms-colada.service

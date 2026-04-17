@@ -54,9 +54,14 @@ struct AppConfig {
         };
 
         // Web
-        if (web_port == 8889) {
-            int v = envInt("COLADA_PORT", 0);
+        {
+            int v = envInt("WEB_PORT", 0);
+            if (v == 0) v = envInt("COLADA_PORT", 0);
             if (v > 0) web_port = v;
+        }
+        {
+            auto v = env("STATIC_DIR");
+            if (!v.empty()) static_dir = v;
         }
 
         // Database
