@@ -134,6 +134,7 @@ int main() {
     // ── Web Server (Drogon) ─────────────────────────────────────────────
 #ifdef BUILD_WITH_WEB
     ColadaController::setDatabase(db.get());
+    ColadaController::setConfigPath(config_path);
     ColadaController::setHabitAnalyzer(habit_analyzer.get());
     ColadaController::setIdentifier(identifier.get());
     ColadaController::setCalculator(calculator.get());

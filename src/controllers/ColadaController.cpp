@@ -6,8 +6,10 @@
 #include "identification/HybridEngine.h"
 #include "analytics/HabitAnalyzer.h"
 #include "calculation/BodyCompositionCalculator.h"
+#include "utils/AppConfig.h"
 
 #include <nlohmann/json.hpp>
+#include <fstream>
 #include <sstream>
 
 // Static member initialization
@@ -17,6 +19,7 @@ std::function<Json::Value()> ColadaController::ml_status_getter_;
 hms_colada::HabitAnalyzer* ColadaController::habit_analyzer_ = nullptr;
 hms_colada::HybridEngine* ColadaController::identifier_ = nullptr;
 hms_colada::BodyCompositionCalculator* ColadaController::calculator_ = nullptr;
+std::string ColadaController::config_path_;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -766,15 +769,105 @@ void ColadaController::habitPredictions(const drogon::HttpRequestPtr& req,
 
 void ColadaController::getConfig(const drogon::HttpRequestPtr&,
                                   std::function<void(const drogon::HttpResponsePtr&)>&& cb) {
-    Json::Value resp;
-    resp["service"] = "hms-colada";
-    resp["version"] = "1.0.0";
-    resp["db_configured"] = (db_ != nullptr);
-    resp["ml_configured"] = static_cast<bool>(ml_train_trigger_);
-    resp["habits_configured"] = (habit_analyzer_ != nullptr);
-    resp["identifier_configured"] = (identifier_ != nullptr);
-    resp["calculator_configured"] = (calculator_ != nullptr);
+    if (config_path_.empty()) {
+        cb(jsonError("Config path not set", drogon::k500InternalServerError));
+        return;
+    }
+
+    AppConfig config;
+    AppConfig::load(config_path_, config);
+
+    auto nj = config.toJson();
+    auto resp = nlohmannToJsoncpp(nj);
+
+    resp["config_path"] = config_path_;
+    resp["services"]["db_connected"] = (db_ != nullptr);
+    resp["services"]["ml_enabled"] = static_cast<bool>(ml_train_trigger_);
+    resp["services"]["habits_enabled"] = (habit_analyzer_ != nullptr);
+    resp["services"]["identifier_enabled"] = (identifier_ != nullptr);
+
     cb(makeJsonResponse(resp));
+}
+
+void ColadaController::updateConfig(const drogon::HttpRequestPtr& req,
+                                     std::function<void(const drogon::HttpResponsePtr&)>&& cb) {
+    if (config_path_.empty()) {
+        cb(jsonError("Config path not set", drogon::k500InternalServerError));
+        return;
+    }
+
+    auto body = req->getBody();
+    if (body.empty()) {
+        cb(jsonError("Empty request body", drogon::k400BadRequest));
+        return;
+    }
+
+    try {
+        auto incoming = nlohmann::json::parse(body);
+
+        AppConfig config;
+        AppConfig::load(config_path_, config);
+
+        // Database
+        if (incoming.contains("database")) {
+            auto& d = incoming["database"];
+            if (d.contains("host")) config.database.host = d["host"];
+            if (d.contains("port")) config.database.port = d["port"];
+            if (d.contains("name")) config.database.name = d["name"];
+            if (d.contains("user")) config.database.user = d["user"];
+            if (d.contains("password") && d["password"].is_string()) {
+                std::string pw = d["password"];
+                if (!pw.empty() && pw != "********") {
+                    config.database.password = pw;
+                }
+            }
+        }
+
+        // MQTT
+        if (incoming.contains("mqtt")) {
+            auto& m = incoming["mqtt"];
+            if (m.contains("enabled")) config.mqtt.enabled = m["enabled"];
+            if (m.contains("broker")) config.mqtt.broker = m["broker"];
+            if (m.contains("port")) config.mqtt.port = m["port"];
+            if (m.contains("username")) config.mqtt.username = m["username"];
+            if (m.contains("password") && m["password"].is_string()) {
+                std::string pw = m["password"];
+                if (!pw.empty() && pw != "********") {
+                    config.mqtt.password = pw;
+                }
+            }
+            if (m.contains("client_id")) config.mqtt.client_id = m["client_id"];
+            if (m.contains("scale_topic")) config.mqtt.scale_topic = m["scale_topic"];
+        }
+
+        // ML Training
+        if (incoming.contains("ml_training")) {
+            auto& ml = incoming["ml_training"];
+            if (ml.contains("enabled")) config.ml_training.enabled = ml["enabled"];
+            if (ml.contains("schedule")) config.ml_training.schedule = ml["schedule"];
+            if (ml.contains("model_dir")) config.ml_training.model_dir = ml["model_dir"];
+            if (ml.contains("min_measurements")) config.ml_training.min_measurements = ml["min_measurements"];
+        }
+
+        // Web
+        if (incoming.contains("web_port")) config.web_port = incoming["web_port"];
+        if (incoming.contains("static_dir")) config.static_dir = incoming["static_dir"];
+        if (incoming.contains("setup_complete")) config.setup_complete = incoming["setup_complete"];
+
+        config.save(config_path_);
+
+        Json::Value resp;
+        resp["status"] = "ok";
+        resp["message"] = "Config saved. Restart service for changes to take effect.";
+        resp["config_path"] = config_path_;
+        resp["restart_required"] = true;
+        cb(makeJsonResponse(resp));
+
+    } catch (const nlohmann::json::exception& e) {
+        cb(jsonError(std::string("Invalid JSON: ") + e.what(), drogon::k400BadRequest));
+    } catch (const std::exception& e) {
+        cb(jsonError(std::string("Failed to save config: ") + e.what(), drogon::k500InternalServerError));
+    }
 }
 
 #endif // BUILD_WITH_WEB
