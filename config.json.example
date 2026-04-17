@@ -1,0 +1,28 @@
+{
+  "web_port": 8889,
+  "static_dir": "./static/browser",
+  "setup_complete": false,
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "colada_scale",
+    "user": "colada_user",
+    "password": "your_password_here"
+  },
+  "mqtt": {
+    "enabled": true,
+    "broker": "localhost",
+    "port": 1883,
+    "username": "mqtt_user",
+    "password": "your_mqtt_password",
+    "client_id": "hms_colada",
+    "scale_topic": "giraffe_scale/measurement",
+    "user_selector_topic": "colada_scale/user_selector/set"
+  },
+  "ml_training": {
+    "enabled": false,
+    "schedule": "weekly",
+    "model_dir": "",
+    "min_measurements": 20
+  }
+}
