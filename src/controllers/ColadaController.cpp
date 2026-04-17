@@ -779,6 +779,7 @@ void ColadaController::getConfig(const drogon::HttpRequestPtr&,
 
     AppConfig config;
     AppConfig::load(config_path_, config);
+    config.applyEnvFallbacks();
 
     auto nj = config.toJson();
     auto resp = nlohmannToJsoncpp(nj);
