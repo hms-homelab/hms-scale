@@ -133,12 +133,13 @@ export class DashboardComponent implements OnInit {
     if (!this.selectedUserId) return;
 
     this.api.getDailyAverages(this.selectedUserId, 90).subscribe(averages => {
-      this.dailyAverages = averages;
-      this.weightLabels = averages.map(a => {
+      const sorted = [...averages].sort((a, b) => a.date.localeCompare(b.date));
+      this.dailyAverages = sorted;
+      this.weightLabels = sorted.map(a => {
         const d = new Date(a.date);
         return `${d.getMonth() + 1}/${d.getDate()}`;
       });
-      this.weightData = averages.map(a => a.avg_weight_kg);
+      this.weightData = sorted.map(a => a.avg_weight_kg);
     });
 
     this.api.getMeasurements(this.selectedUserId, 1).subscribe(measurements => {
