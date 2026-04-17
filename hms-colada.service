@@ -1,25 +1,27 @@
 [Unit]
 Description=HMS-Colada Smart Scale Service
-After=network.target postgresql.service
+After=network.target postgresql.service emqx.service
+Wants=postgresql.service
 
 [Service]
 Type=simple
-User=%i
+User=aamat
+WorkingDirectory=/home/aamat
 ExecStart=/usr/local/bin/hms_colada
 Restart=always
 RestartSec=10
 
-# Configure via environment variables or ~/.hms-colada/config.json
-# Environment=DB_HOST=localhost
-# Environment=DB_PORT=5432
-# Environment=DB_NAME=colada_scale
-# Environment=DB_USER=colada_user
-# Environment=DB_PASSWORD=changeme
-# Environment=MQTT_BROKER=localhost
-# Environment=MQTT_PORT=1883
-# Environment=MQTT_USER=user
-# Environment=MQTT_PASS=changeme
-# Environment=WEB_PORT=8889
+# Credentials from env (config.json takes precedence if set)
+Environment=DB_HOST=192.168.2.15
+Environment=DB_PORT=5432
+Environment=DB_NAME=colada_scale
+Environment=DB_USER=colada_user
+Environment=DB_PASSWORD=colada_postgres_2026_secure
+Environment=MQTT_BROKER=192.168.2.15
+Environment=MQTT_PORT=1883
+Environment=MQTT_USER=aamat
+Environment=MQTT_PASSWORD=exploracion
+Environment=WEB_PORT=8889
 
 SyslogIdentifier=hms-colada
 StandardOutput=journal
