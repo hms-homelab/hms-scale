@@ -40,8 +40,8 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
         <section class="section">
           <h2>Consistency</h2>
           <div class="cards-row">
-            <app-metric-card label="Score" [value]="insights.consistency.score | number:'1.0-0'" unit="/ 100" />
-            <app-metric-card label="Streak" [value]="insights.consistency.streak_days" unit="days" />
+            <app-metric-card label="Score" [value]="insights.consistency.consistency_score | number:'1.0-0'" unit="/ 100" />
+            <app-metric-card label="Streak" [value]="insights.consistency.current_streak_days" unit="days" />
             <app-metric-card label="Avg Gap" [value]="insights.consistency.avg_days_between | number:'1.1-1'" unit="days" />
             <app-metric-card label="Longest Gap" [value]="insights.consistency.longest_gap_days" unit="days" />
           </div>
@@ -51,47 +51,52 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
         <section class="section">
           <h2>Weight Trend</h2>
           <div class="cards-row">
-            <app-metric-card label="Direction" [value]="insights.weight_trend.direction" />
-            <app-metric-card label="Change" [value]="insights.weight_trend.change_kg | number:'1.2-2'" unit="kg" />
-            <app-metric-card label="Change %" [value]="insights.weight_trend.change_pct | number:'1.1-1'" unit="%" />
+            <app-metric-card label="Direction" [value]="insights.weight.trend_direction" />
+            <app-metric-card label="Change" [value]="insights.weight.total_change_kg | number:'1.2-2'" unit="kg" />
+            <app-metric-card label="Rate" [value]="insights.predictions.rate_kg_per_week | number:'1.2-2'" unit="kg/wk" />
           </div>
 
-          @if (insights.weight_trend.predictions?.length) {
-            <div class="card predictions">
-              <h3>Predictions</h3>
-              <div class="prediction-list">
-                @for (p of insights.weight_trend.predictions; track p.date) {
-                  <div class="prediction-item">
-                    <span class="date">{{ p.date }}</span>
-                    <span class="weight">{{ p.predicted_weight_kg | number:'1.1-1' }} kg</span>
-                  </div>
-                }
+          <div class="card predictions">
+            <h3>Predictions</h3>
+            <div class="prediction-list">
+              <div class="prediction-item">
+                <span class="date">7 days</span>
+                <span class="weight">{{ insights.predictions.predicted_weight_7d | number:'1.1-1' }} kg</span>
+              </div>
+              <div class="prediction-item">
+                <span class="date">30 days</span>
+                <span class="weight">{{ insights.predictions.predicted_weight_30d | number:'1.1-1' }} kg</span>
+              </div>
+              <div class="prediction-item">
+                <span class="date">90 days</span>
+                <span class="weight">{{ insights.predictions.predicted_weight_90d | number:'1.1-1' }} kg</span>
               </div>
             </div>
-          }
+          </div>
         </section>
 
         <!-- Body Composition -->
         <section class="section">
           <h2>Body Composition</h2>
           <div class="cards-row">
-            <app-metric-card label="Fat Trend" [value]="insights.body_composition.fat_trend" />
-            <app-metric-card label="Muscle Trend" [value]="insights.body_composition.muscle_trend" />
-            <app-metric-card label="Recomp Status" [value]="insights.body_composition.recomposition_status" />
-            <app-metric-card label="Fat 30d" [value]="insights.body_composition.fat_change_30d | number:'1.1-1'" unit="%" />
-            <app-metric-card label="Muscle 30d" [value]="insights.body_composition.muscle_change_30d | number:'1.1-1'" unit="kg" />
+            <app-metric-card label="Fat Trend" [value]="insights.body_comp.body_fat_trend" />
+            <app-metric-card label="Muscle Trend" [value]="insights.body_comp.muscle_trend" />
+            <app-metric-card label="Recomposing" [value]="insights.body_comp.is_recomposing ? 'Yes' : 'No'" />
+            <app-metric-card label="Fat Change" [value]="insights.body_comp.body_fat_change | number:'1.1-1'" unit="%" />
+            <app-metric-card label="Muscle Change" [value]="insights.body_comp.muscle_change_kg | number:'1.1-1'" unit="kg" />
           </div>
         </section>
 
         <!-- Recommendations -->
-        @if (insights.recommendations?.length) {
+        @if (insights.recommendations.length) {
           <section class="section">
             <h2>Recommendations</h2>
             <mat-list class="insights-list">
-              @for (rec of insights.recommendations; track rec) {
+              @for (rec of insights.recommendations; track rec.title) {
                 <mat-list-item>
                   <mat-icon matListItemIcon>lightbulb</mat-icon>
-                  <span matListItemTitle>{{ rec }}</span>
+                  <span matListItemTitle>{{ rec.title }}</span>
+                  <span matListItemLine>{{ rec.message }}</span>
                 </mat-list-item>
               }
             </mat-list>
@@ -99,14 +104,14 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
         }
 
         <!-- Alerts -->
-        @if (insights.alerts?.length) {
+        @if (insights.alerts.length) {
           <section class="section">
             <h2>Alerts</h2>
             <mat-list class="insights-list alerts">
-              @for (alert of insights.alerts; track alert) {
+              @for (alert of insights.alerts; track alert.message) {
                 <mat-list-item>
                   <mat-icon matListItemIcon color="warn">warning</mat-icon>
-                  <span matListItemTitle>{{ alert }}</span>
+                  <span matListItemTitle>{{ alert.message }}</span>
                 </mat-list-item>
               }
             </mat-list>

@@ -89,30 +89,55 @@ export interface MlPrediction {
 
 export interface HabitInsights {
   consistency: {
-    score: number;
-    streak_days: number;
+    consistency_score: number;
+    current_streak_days: number;
+    max_streak_days: number;
     avg_days_between: number;
     longest_gap_days: number;
+    total_measurements: number;
   };
-  weight_trend: {
-    direction: string;
-    change_kg: number;
-    change_pct: number;
-    predictions: Array<{ date: string; predicted_weight_kg: number }>;
+  weight: {
+    current_weight: number;
+    starting_weight: number;
+    total_change_kg: number;
+    trend_direction: string;
+    min_weight: number;
+    max_weight: number;
+    weight_range: number;
+    slope_kg_per_measurement: number;
+    volatility: number;
+    is_volatile: boolean;
+    avg_7d: number;
+    avg_30d: number;
   };
-  body_composition: {
-    fat_trend: string;
+  predictions: {
+    predicted_weight_7d: number;
+    predicted_weight_30d: number;
+    predicted_weight_90d: number;
+    rate_kg_per_week: number;
+    rate_lbs_per_week: number;
+    trend_confidence: string;
+  };
+  body_comp: {
+    body_fat_change: number;
+    muscle_change_kg: number;
+    body_fat_trend: string;
     muscle_trend: string;
-    recomposition_status: string;
-    fat_change_30d: number;
-    muscle_change_30d: number;
+    is_recomposing: boolean;
   };
-  recommendations: string[];
-  alerts: string[];
+  weekly: {
+    heaviest_day: string;
+    lightest_day: string;
+    weekly_variation_kg: number;
+    has_weekend_effect: boolean;
+    day_averages: Record<string, number>;
+  };
+  recommendations: Array<{ category: string; priority: string; title: string; message: string; actionable_step: string }>;
+  alerts: Array<{ type: string; severity: string; message: string }>;
 }
 
 export interface DashboardData {
-  users: ScaleUser[];
-  recent_measurements: ScaleMeasurement[];
-  unassigned_count: number;
+  users: any[];
+  total_users: number;
+  total_measurements: number;
 }
