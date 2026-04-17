@@ -10,6 +10,7 @@
 #include "utils/AppConfig.h"
 
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 #include <fstream>
 #include <sstream>
 
@@ -927,6 +928,82 @@ void ColadaController::webhookMeasurement(const drogon::HttpRequestPtr& req,
     } catch (const std::exception& e) {
         cb(jsonError(e.what(), drogon::k500InternalServerError));
     }
+}
+
+// ---------------------------------------------------------------------------
+// Device Logs
+// ---------------------------------------------------------------------------
+
+std::deque<ColadaController::DeviceLog> ColadaController::device_logs_;
+std::mutex ColadaController::device_logs_mutex_;
+
+void ColadaController::webhookLog(const drogon::HttpRequestPtr& req,
+                                   std::function<void(const drogon::HttpResponsePtr&)>&& cb) {
+    try {
+        auto body = req->getBody();
+        if (body.empty()) {
+            cb(jsonError("empty body", drogon::k400BadRequest));
+            return;
+        }
+
+        auto nj = nlohmann::json::parse(std::string(body));
+
+        DeviceLog entry;
+        entry.level = nj.value("level", "INFO");
+        entry.tag = nj.value("tag", "device");
+        entry.message = nj.value("message", "");
+
+        // Use server timestamp if device didn't provide one
+        auto now = std::chrono::system_clock::now();
+        auto t = std::chrono::system_clock::to_time_t(now);
+        char buf[32];
+        std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&t));
+        entry.timestamp = nj.value("timestamp", std::string(buf));
+
+        spdlog::info("[device:{}] [{}] {}", entry.tag, entry.level, entry.message);
+
+        {
+            std::lock_guard<std::mutex> lock(device_logs_mutex_);
+            device_logs_.push_back(std::move(entry));
+            while (device_logs_.size() > MAX_DEVICE_LOGS) {
+                device_logs_.pop_front();
+            }
+        }
+
+        Json::Value resp;
+        resp["status"] = "ok";
+        cb(makeJsonResponse(resp));
+
+    } catch (const std::exception& e) {
+        cb(jsonError(e.what(), drogon::k400BadRequest));
+    }
+}
+
+void ColadaController::getDeviceLogs(const drogon::HttpRequestPtr& req,
+                                      std::function<void(const drogon::HttpResponsePtr&)>&& cb) {
+    int limit = intParam(req, "limit", 50);
+    std::string level_filter = req->getParameter("level");
+
+    std::lock_guard<std::mutex> lock(device_logs_mutex_);
+
+    Json::Value logs(Json::arrayValue);
+    int count = 0;
+    for (auto it = device_logs_.rbegin(); it != device_logs_.rend() && count < limit; ++it) {
+        if (!level_filter.empty() && it->level != level_filter) continue;
+        Json::Value entry;
+        entry["timestamp"] = it->timestamp;
+        entry["level"] = it->level;
+        entry["tag"] = it->tag;
+        entry["message"] = it->message;
+        logs.append(entry);
+        count++;
+    }
+
+    Json::Value resp;
+    resp["logs"] = logs;
+    resp["count"] = count;
+    resp["total"] = static_cast<int>(device_logs_.size());
+    cb(makeJsonResponse(resp));
 }
 
 #endif // BUILD_WITH_WEB

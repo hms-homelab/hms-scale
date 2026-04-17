@@ -3,8 +3,10 @@
 
 #include <drogon/HttpController.h>
 #include <json/json.h>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 
 // Forward declarations
 class IScaleDatabase;
@@ -48,6 +50,8 @@ public:
     ADD_METHOD_TO(ColadaController::updateConfig,        "/api/config",                      drogon::Put);
     // Webhook
     ADD_METHOD_TO(ColadaController::webhookMeasurement,  "/api/webhook/measurement",         drogon::Post);
+    ADD_METHOD_TO(ColadaController::webhookLog,           "/api/webhook/log",                  drogon::Post);
+    ADD_METHOD_TO(ColadaController::getDeviceLogs,        "/api/device/logs",                  drogon::Get);
     METHOD_LIST_END
 
     // Handler signatures
@@ -73,6 +77,8 @@ public:
     void getConfig(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
     void updateConfig(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
     void webhookMeasurement(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
+    void webhookLog(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
+    void getDeviceLogs(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
 
     // Static setters for dependency injection (called from main.cpp)
     static void setDatabase(IScaleDatabase* db) { db_ = db; }
@@ -96,6 +102,16 @@ private:
     static hms_colada::BodyCompositionCalculator* calculator_;
     static hms_colada::ScaleSubscriber* subscriber_;
     static std::string config_path_;
+
+    struct DeviceLog {
+        std::string timestamp;
+        std::string level;
+        std::string tag;
+        std::string message;
+    };
+    static std::deque<DeviceLog> device_logs_;
+    static std::mutex device_logs_mutex_;
+    static constexpr size_t MAX_DEVICE_LOGS = 200;
 };
 
 #endif // BUILD_WITH_WEB
