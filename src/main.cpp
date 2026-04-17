@@ -160,17 +160,12 @@ int main() {
 
     if (!index_html.empty()) {
         drogon::app().setCustomErrorHandler(
-            [index_html](drogon::HttpStatusCode code,
-                         const drogon::HttpRequestPtr& req) -> drogon::HttpResponsePtr {
+            [index_html](drogon::HttpStatusCode code) -> drogon::HttpResponsePtr {
                 if (code == drogon::k404NotFound) {
-                    auto path = req->path();
-                    if (path.find("/api/") == std::string::npos &&
-                        path.find("/health") == std::string::npos) {
-                        auto resp = drogon::HttpResponse::newHttpResponse();
-                        resp->setContentTypeCode(drogon::CT_TEXT_HTML);
-                        resp->setBody(index_html);
-                        return resp;
-                    }
+                    auto resp = drogon::HttpResponse::newHttpResponse();
+                    resp->setContentTypeCode(drogon::CT_TEXT_HTML);
+                    resp->setBody(index_html);
+                    return resp;
                 }
                 auto resp = drogon::HttpResponse::newHttpResponse();
                 resp->setStatusCode(code);
