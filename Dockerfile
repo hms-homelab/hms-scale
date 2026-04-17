@@ -31,9 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpaho-mqttpp-dev \
     nlohmann-json3-dev \
     libspdlog-dev \
+    libsqlite3-dev \
     libdrogon-dev \
-    uuid-dev libbrotli-dev \
-    zlib1g-dev \
+    uuid-dev libmariadb-dev libhiredis-dev libbrotli-dev \
+    libyaml-cpp-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
