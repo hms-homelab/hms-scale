@@ -1,0 +1,29 @@
+[Unit]
+Description=HMS-Colada Smart Scale Service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=%i
+ExecStart=/usr/local/bin/hms_colada
+Restart=always
+RestartSec=10
+
+# Configure via environment variables or ~/.hms-colada/config.json
+# Environment=DB_HOST=localhost
+# Environment=DB_PORT=5432
+# Environment=DB_NAME=colada_scale
+# Environment=DB_USER=colada_user
+# Environment=DB_PASSWORD=changeme
+# Environment=MQTT_BROKER=localhost
+# Environment=MQTT_PORT=1883
+# Environment=MQTT_USER=user
+# Environment=MQTT_PASS=changeme
+# Environment=WEB_PORT=8889
+
+SyslogIdentifier=hms-colada
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
