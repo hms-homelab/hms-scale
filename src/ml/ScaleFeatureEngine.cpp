@@ -14,7 +14,8 @@ namespace ml {
 void ScaleFeatureEngine::parseTimestamp(const std::string& ts, int& hour, int& day_of_week) {
     // Parse "YYYY-MM-DDTHH:MM:SS" with sscanf + mktime for day_of_week
     int year = 0, month = 0, day = 0, h = 0, min = 0, sec = 0;
-    std::sscanf(ts.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &h, &min, &sec);
+    if (std::sscanf(ts.c_str(), "%d-%d-%d %d:%d:%d", &year, &month, &day, &h, &min, &sec) < 6)
+        std::sscanf(ts.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &h, &min, &sec);
 
     hour = h;
 

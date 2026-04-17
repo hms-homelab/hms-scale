@@ -16,11 +16,13 @@ namespace hms_colada {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Parse "YYYY-MM-DDTHH:MM:SS..." into std::tm (UTC assumed)
+// Parse "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DDTHH:MM:SS" into std::tm
 static bool parseTimestamp(const std::string& ts, std::tm& out) {
     std::memset(&out, 0, sizeof(out));
     int y, M, d, h, m, s;
-    if (std::sscanf(ts.c_str(), "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) < 6)
+    // Try space separator first (PostgreSQL format), then T (ISO 8601)
+    if (std::sscanf(ts.c_str(), "%d-%d-%d %d:%d:%d", &y, &M, &d, &h, &m, &s) < 6 &&
+        std::sscanf(ts.c_str(), "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) < 6)
         return false;
     out.tm_year = y - 1900;
     out.tm_mon  = M - 1;
