@@ -72,12 +72,16 @@ export interface ProgressPoint {
 
 export interface MlStatus {
   status: string;
-  trained_at: string;
-  accuracy: number;
-  cv_accuracy: number;
-  n_samples: number;
-  n_users: number;
-  feature_importance: Record<string, number>;
+  schedule: string;
+  metrics?: {
+    accuracy: number;
+    cv_accuracy: number;
+    cv_std: number;
+    n_samples: number;
+    n_users: number;
+    trained_at: string;
+    feature_importance: Record<string, number>;
+  };
 }
 
 export interface MlPrediction {

@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
 import { ColadaApiService } from '../../services/colada-api.service';
+import { UnitService } from '../../services/unit.service';
 import { ScaleUser } from '../../models/user.model';
 import { UserDialogComponent } from './user-dialog.component';
 
@@ -50,12 +51,12 @@ import { UserDialogComponent } from './user-dialog.component';
 
           <ng-container matColumnDef="expected_weight_kg">
             <th mat-header-cell *matHeaderCellDef>Expected Weight</th>
-            <td mat-cell *matCellDef="let user">{{ user.expected_weight_kg }} kg</td>
+            <td mat-cell *matCellDef="let user">{{ units.formatWeight(user.expected_weight_kg) }} {{ units.weightUnit() }}</td>
           </ng-container>
 
           <ng-container matColumnDef="weight_tolerance_kg">
             <th mat-header-cell *matHeaderCellDef>Tolerance</th>
-            <td mat-cell *matCellDef="let user">&plusmn;{{ user.weight_tolerance_kg }} kg</td>
+            <td mat-cell *matCellDef="let user">&plusmn;{{ units.formatWeight(user.weight_tolerance_kg) }} {{ units.weightUnit() }}</td>
           </ng-container>
 
           <ng-container matColumnDef="is_active">
@@ -100,6 +101,7 @@ import { UserDialogComponent } from './user-dialog.component';
 export class UsersComponent implements OnInit {
   private api = inject(ColadaApiService);
   private dialog = inject(MatDialog);
+  units = inject(UnitService);
 
   users: ScaleUser[] = [];
   displayedColumns = ['name', 'sex', 'height_cm', 'expected_weight_kg', 'weight_tolerance_kg', 'is_active', 'actions'];

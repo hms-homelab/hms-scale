@@ -35,24 +35,29 @@ Chart.register(...registerables);
       </div>
 
       @if (status) {
-        <div class="cards-row">
-          <app-metric-card label="Status" [value]="status.status" />
-          <app-metric-card label="Accuracy" [value]="(status.accuracy * 100 | number:'1.1-1') + '%'" />
-          <app-metric-card label="CV Accuracy" [value]="(status.cv_accuracy * 100 | number:'1.1-1') + '%'" />
-          <app-metric-card label="Samples" [value]="status.n_samples" />
-          <app-metric-card label="Users" [value]="status.n_users" />
-        </div>
-
-        @if (status.trained_at) {
-          <div class="trained-at">
-            Last trained: {{ status.trained_at | date:'medium' }}
+        @if (status.metrics) {
+          <div class="cards-row">
+            <app-metric-card label="Status" [value]="status.status" />
+            <app-metric-card label="Accuracy" [value]="(status.metrics.accuracy * 100 | number:'1.1-1') + '%'" />
+            <app-metric-card label="CV Accuracy" [value]="(status.metrics.cv_accuracy * 100 | number:'1.1-1') + '%'" />
+            <app-metric-card label="Samples" [value]="status.metrics.n_samples" />
+            <app-metric-card label="Users" [value]="status.metrics.n_users" />
           </div>
-        }
 
-        <div class="chart-card">
-          <div class="chart-title">Feature Importance</div>
-          <canvas #featureCanvas></canvas>
-        </div>
+          <div class="trained-at">
+            Last trained: {{ status.metrics.trained_at }}
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title">Feature Importance</div>
+            <canvas #featureCanvas></canvas>
+          </div>
+        } @else {
+          <div class="cards-row">
+            <app-metric-card label="Status" [value]="status.status" />
+          </div>
+          <p class="empty-state">No model trained yet. Click "Train Model" to begin.</p>
+        }
       } @else {
         <div class="empty-state">
           <p>No ML model trained yet. Click "Train Model" to begin.</p>
@@ -152,10 +157,10 @@ export class MlPanelComponent implements OnInit, AfterViewInit {
   }
 
   private renderFeatureChart(): void {
-    if (!this.featureCanvasRef?.nativeElement || !this.status?.feature_importance) return;
+    if (!this.featureCanvasRef?.nativeElement || !this.status?.metrics?.feature_importance) return;
     this.featureChart?.destroy();
 
-    const entries = Object.entries(this.status.feature_importance)
+    const entries = Object.entries(this.status.metrics.feature_importance)
       .sort((a, b) => b[1] - a[1]);
     const labels = entries.map(e => e[0]);
     const data = entries.map(e => e[1]);

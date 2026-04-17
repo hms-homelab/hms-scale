@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { ColadaApiService } from '../../services/colada-api.service';
+import { UnitService } from '../../services/unit.service';
 import { ScaleUser, HabitInsights } from '../../models/user.model';
 import { MetricCardComponent } from '../../components/metric-card/metric-card.component';
 
@@ -52,7 +53,7 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
           <h2>Weight Trend</h2>
           <div class="cards-row">
             <app-metric-card label="Direction" [value]="insights.weight.trend_direction" />
-            <app-metric-card label="Change" [value]="insights.weight.total_change_kg | number:'1.2-2'" unit="kg" />
+            <app-metric-card label="Change" [value]="units.formatWeight(insights.weight.total_change_kg, 2)" [unit]="units.weightUnit()" />
             <app-metric-card label="Rate" [value]="insights.predictions.rate_kg_per_week | number:'1.2-2'" unit="kg/wk" />
           </div>
 
@@ -61,15 +62,15 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
             <div class="prediction-list">
               <div class="prediction-item">
                 <span class="date">7 days</span>
-                <span class="weight">{{ insights.predictions.predicted_weight_7d | number:'1.1-1' }} kg</span>
+                <span class="weight">{{ units.formatWeight(insights.predictions.predicted_weight_7d) }} {{ units.weightUnit() }}</span>
               </div>
               <div class="prediction-item">
                 <span class="date">30 days</span>
-                <span class="weight">{{ insights.predictions.predicted_weight_30d | number:'1.1-1' }} kg</span>
+                <span class="weight">{{ units.formatWeight(insights.predictions.predicted_weight_30d) }} {{ units.weightUnit() }}</span>
               </div>
               <div class="prediction-item">
                 <span class="date">90 days</span>
-                <span class="weight">{{ insights.predictions.predicted_weight_90d | number:'1.1-1' }} kg</span>
+                <span class="weight">{{ units.formatWeight(insights.predictions.predicted_weight_90d) }} {{ units.weightUnit() }}</span>
               </div>
             </div>
           </div>
@@ -83,7 +84,7 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
             <app-metric-card label="Muscle Trend" [value]="insights.body_comp.muscle_trend" />
             <app-metric-card label="Recomposing" [value]="insights.body_comp.is_recomposing ? 'Yes' : 'No'" />
             <app-metric-card label="Fat Change" [value]="insights.body_comp.body_fat_change | number:'1.1-1'" unit="%" />
-            <app-metric-card label="Muscle Change" [value]="insights.body_comp.muscle_change_kg | number:'1.1-1'" unit="kg" />
+            <app-metric-card label="Muscle Change" [value]="units.formatWeight(insights.body_comp.muscle_change_kg)" [unit]="units.weightUnit()" />
           </div>
         </section>
 
@@ -167,6 +168,7 @@ import { MetricCardComponent } from '../../components/metric-card/metric-card.co
 })
 export class HabitsComponent implements OnInit {
   private api = inject(ColadaApiService);
+  units = inject(UnitService);
 
   users: ScaleUser[] = [];
   selectedUserId = '';
