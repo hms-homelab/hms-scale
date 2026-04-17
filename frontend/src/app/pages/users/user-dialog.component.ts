@@ -44,10 +44,23 @@ import { UnitService } from '../../services/unit.service';
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Height ({{ units.isLbs() ? 'inches' : 'cm' }})</mat-label>
-        <input matInput type="number" [(ngModel)]="displayHeight" required>
-      </mat-form-field>
+      @if (units.isLbs()) {
+        <div class="height-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Feet</mat-label>
+            <input matInput type="number" [(ngModel)]="heightFeet" (ngModelChange)="onHeightChange()" required>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Inches</mat-label>
+            <input matInput type="number" [(ngModel)]="heightInches" (ngModelChange)="onHeightChange()" required>
+          </mat-form-field>
+        </div>
+      } @else {
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Height (cm)</mat-label>
+          <input matInput type="number" [(ngModel)]="displayHeight" required>
+        </mat-form-field>
+      }
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Expected Weight ({{ units.weightUnit() }})</mat-label>
@@ -73,12 +86,16 @@ import { UnitService } from '../../services/unit.service';
   styles: [`
     .full-width { width: 100%; margin-bottom: 8px; }
     mat-dialog-content { display: flex; flex-direction: column; min-width: 360px; }
+    .height-row { display: flex; gap: 12px; margin-bottom: 8px; }
+    .height-row mat-form-field { flex: 1; }
   `]
 })
 export class UserDialogComponent {
   units = inject(UnitService);
   form: Partial<ScaleUser>;
   displayHeight = 0;
+  heightFeet = 0;
+  heightInches = 0;
   displayWeight = 0;
   displayTolerance = 0;
 
@@ -95,7 +112,13 @@ export class UserDialogComponent {
       weight_tolerance_kg: 5,
       is_active: true,
     };
-    this.displayHeight = +this.units.convertHeight(this.form.height_cm ?? 170).toFixed(1);
+    const cm = this.form.height_cm ?? 170;
+    this.displayHeight = cm;
+    if (this.units.isLbs()) {
+      const totalInches = cm / 2.54;
+      this.heightFeet = Math.floor(totalInches / 12);
+      this.heightInches = Math.round(totalInches % 12);
+    }
     this.displayWeight = +this.units.convertWeight(this.form.expected_weight_kg ?? 70).toFixed(1);
     this.displayTolerance = +this.units.convertWeight(this.form.weight_tolerance_kg ?? 5).toFixed(1);
   }
@@ -106,9 +129,17 @@ export class UserDialogComponent {
       && this.displayTolerance != null);
   }
 
+  onHeightChange(): void {
+    this.displayHeight = (this.heightFeet * 12 + this.heightInches) * 2.54;
+  }
+
   save(): void {
     if (!this.isValid()) return;
-    this.form.height_cm = this.units.heightToCm(this.displayHeight);
+    if (this.units.isLbs()) {
+      this.form.height_cm = (this.heightFeet * 12 + this.heightInches) * 2.54;
+    } else {
+      this.form.height_cm = this.displayHeight;
+    }
     this.form.expected_weight_kg = this.units.weightToKg(this.displayWeight);
     this.form.weight_tolerance_kg = this.units.weightToKg(this.displayTolerance);
     this.dialogRef.close(this.form);
