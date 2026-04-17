@@ -3,6 +3,7 @@
 #include "mqtt_client.h"
 #include "database/IScaleDatabase.h"
 #include "mqtt/DiscoveryPublisher.h"
+#include <mutex>
 #include <string>
 
 namespace hms_colada {
@@ -41,6 +42,17 @@ public:
     void setIdentifier(HybridEngine* engine) { identifier_ = engine; }
     void setCalculator(BodyCompositionCalculator* calc) { calculator_ = calc; }
 
+    /// Result from processing a measurement (returned by webhook path)
+    struct ProcessResult {
+        std::string user_name;
+        double confidence = 0;
+        std::string method;
+        bool identified = false;
+    };
+
+    /// Process a measurement and return identification info (thread-safe)
+    ProcessResult processMeasurementWithResult(double weight_kg, double weight_lbs, double impedance_ohm);
+
     // Exposed for testing
     struct ParsedMeasurement {
         double weight_kg = 0;
@@ -67,6 +79,7 @@ private:
     DiscoveryPublisher* discovery_;
     HybridEngine* identifier_;
     BodyCompositionCalculator* calculator_;
+    std::mutex process_mutex_;
 };
 
 }  // namespace hms_colada
