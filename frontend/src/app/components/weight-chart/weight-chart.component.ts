@@ -71,7 +71,7 @@ export class WeightChartComponent implements AfterViewInit, OnChanges, OnDestroy
       data: {
         labels: this.labels,
         datasets: [{
-          label: 'Weight (kg)',
+          label: 'Weight (lbs)',
           data: this.data,
           borderColor: '#64b5f6',
           backgroundColor: 'rgba(100, 181, 246, 0.1)',
