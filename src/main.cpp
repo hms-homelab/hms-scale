@@ -138,6 +138,9 @@ int main() {
     ColadaController::setHabitAnalyzer(habit_analyzer.get());
     ColadaController::setIdentifier(identifier.get());
     ColadaController::setCalculator(calculator.get());
+    if (subscriber) {
+        ColadaController::setSubscriber(subscriber.get());
+    }
 
     if (ml_service) {
         ColadaController::setMlTrainTrigger([&ml_service]() {

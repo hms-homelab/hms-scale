@@ -13,6 +13,7 @@ class HybridEngine;
 class MLTrainingService;
 class HabitAnalyzer;
 class BodyCompositionCalculator;
+class ScaleSubscriber;
 }
 
 class ColadaController : public drogon::HttpController<ColadaController> {
@@ -45,6 +46,8 @@ public:
     // Config
     ADD_METHOD_TO(ColadaController::getConfig,           "/api/config",                      drogon::Get);
     ADD_METHOD_TO(ColadaController::updateConfig,        "/api/config",                      drogon::Put);
+    // Webhook
+    ADD_METHOD_TO(ColadaController::webhookMeasurement,  "/api/webhook/measurement",         drogon::Post);
     METHOD_LIST_END
 
     // Handler signatures
@@ -69,6 +72,7 @@ public:
     void habitPredictions(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
     void getConfig(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
     void updateConfig(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
+    void webhookMeasurement(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
 
     // Static setters for dependency injection (called from main.cpp)
     static void setDatabase(IScaleDatabase* db) { db_ = db; }
@@ -78,6 +82,7 @@ public:
     static void setHabitAnalyzer(hms_colada::HabitAnalyzer* ha) { habit_analyzer_ = ha; }
     static void setIdentifier(hms_colada::HybridEngine* id) { identifier_ = id; }
     static void setCalculator(hms_colada::BodyCompositionCalculator* calc) { calculator_ = calc; }
+    static void setSubscriber(hms_colada::ScaleSubscriber* sub) { subscriber_ = sub; }
 
 private:
     static Json::Value jsonResp(const Json::Value& data);
@@ -89,6 +94,7 @@ private:
     static hms_colada::HabitAnalyzer* habit_analyzer_;
     static hms_colada::HybridEngine* identifier_;
     static hms_colada::BodyCompositionCalculator* calculator_;
+    static hms_colada::ScaleSubscriber* subscriber_;
     static std::string config_path_;
 };
 

@@ -6,6 +6,7 @@
 #include "identification/HybridEngine.h"
 #include "analytics/HabitAnalyzer.h"
 #include "calculation/BodyCompositionCalculator.h"
+#include "mqtt/ScaleSubscriber.h"
 #include "utils/AppConfig.h"
 
 #include <nlohmann/json.hpp>
@@ -19,6 +20,7 @@ std::function<Json::Value()> ColadaController::ml_status_getter_;
 hms_colada::HabitAnalyzer* ColadaController::habit_analyzer_ = nullptr;
 hms_colada::HybridEngine* ColadaController::identifier_ = nullptr;
 hms_colada::BodyCompositionCalculator* ColadaController::calculator_ = nullptr;
+hms_colada::ScaleSubscriber* ColadaController::subscriber_ = nullptr;
 std::string ColadaController::config_path_;
 
 // ---------------------------------------------------------------------------
@@ -867,6 +869,63 @@ void ColadaController::updateConfig(const drogon::HttpRequestPtr& req,
         cb(jsonError(std::string("Invalid JSON: ") + e.what(), drogon::k400BadRequest));
     } catch (const std::exception& e) {
         cb(jsonError(std::string("Failed to save config: ") + e.what(), drogon::k500InternalServerError));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Webhook — ESP32 direct HTTP measurement submission
+// ---------------------------------------------------------------------------
+
+void ColadaController::webhookMeasurement(const drogon::HttpRequestPtr& req,
+                                           std::function<void(const drogon::HttpResponsePtr&)>&& cb) {
+    if (!subscriber_) {
+        cb(jsonError("Measurement processor not available", drogon::k503ServiceUnavailable));
+        return;
+    }
+
+    auto body = req->getBody();
+    if (body.empty()) {
+        cb(jsonError("empty request body", drogon::k400BadRequest));
+        return;
+    }
+
+    try {
+        auto nj = nlohmann::json::parse(std::string(body));
+
+        // Required fields
+        if (!nj.contains("weight_kg") || !nj.contains("weight_lb")) {
+            cb(jsonError("weight_kg and weight_lb are required", drogon::k400BadRequest));
+            return;
+        }
+
+        double weight_kg = nj["weight_kg"].get<double>();
+        double weight_lb = nj["weight_lb"].get<double>();
+        double impedance = nj.value("impedance", 0.0);
+
+        if (weight_kg <= 0) {
+            cb(jsonError("weight_kg must be positive", drogon::k400BadRequest));
+            return;
+        }
+
+        if (weight_lb <= 0) {
+            cb(jsonError("weight_lb must be positive", drogon::k400BadRequest));
+            return;
+        }
+
+        auto result = subscriber_->processMeasurementWithResult(weight_kg, weight_lb, impedance);
+
+        Json::Value resp;
+        resp["status"] = "ok";
+        resp["user"] = result.identified ? result.user_name : "unassigned";
+        resp["confidence"] = result.confidence;
+        resp["method"] = result.method;
+        resp["identified"] = result.identified;
+        cb(makeJsonResponse(resp));
+
+    } catch (const nlohmann::json::exception& e) {
+        cb(jsonError(std::string("invalid JSON: ") + e.what(), drogon::k400BadRequest));
+    } catch (const std::exception& e) {
+        cb(jsonError(e.what(), drogon::k500InternalServerError));
     }
 }
 

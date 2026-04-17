@@ -133,10 +133,22 @@ void ScaleSubscriber::onUserSelector(const std::string& /*topic*/, const std::st
 }
 
 // ---------------------------------------------------------------------------
-// processMeasurement — full pipeline
+// processMeasurement — delegates to processMeasurementWithResult
 // ---------------------------------------------------------------------------
 void ScaleSubscriber::processMeasurement(double weight_kg, double weight_lbs,
                                           double impedance_ohm) {
+    processMeasurementWithResult(weight_kg, weight_lbs, impedance_ohm);
+}
+
+// ---------------------------------------------------------------------------
+// processMeasurementWithResult — full pipeline, returns identification info
+// ---------------------------------------------------------------------------
+ScaleSubscriber::ProcessResult ScaleSubscriber::processMeasurementWithResult(
+    double weight_kg, double weight_lbs, double impedance_ohm) {
+    std::lock_guard<std::mutex> lock(process_mutex_);
+
+    ProcessResult result;
+
     // Current timestamp in ISO 8601
     auto now = std::chrono::system_clock::now();
     auto time_t_now = std::chrono::system_clock::to_time_t(now);
@@ -163,6 +175,11 @@ void ScaleSubscriber::processMeasurement(double weight_kg, double weight_lbs,
                 method = ident->method;
                 spdlog::info("User identified: {} (method: {}, confidence: {}%)",
                              user_name, method, confidence);
+
+                result.user_name = user_name;
+                result.confidence = confidence;
+                result.method = method;
+                result.identified = true;
             } else {
                 spdlog::info("No user identified - storing as unassigned");
             }
@@ -271,6 +288,8 @@ void ScaleSubscriber::processMeasurement(double weight_kg, double weight_lbs,
             spdlog::error("Failed to publish to HA: {}", e.what());
         }
     }
+
+    return result;
 }
 
 }  // namespace hms_colada
