@@ -39,7 +39,7 @@ import { ScaleUser, ScaleMeasurement, DailyAverage } from '../../models/user.mod
         <div class="cards-row">
           <app-metric-card label="Weight" [value]="latestMeasurement.weight_lbs | number:'1.1-1'" unit="lbs" />
           <app-metric-card label="Body Fat" [value]="latestMeasurement.composition.body_fat_percentage | number:'1.1-1'" unit="%" />
-          <app-metric-card label="Muscle Mass" [value]="latestMeasurement.composition.muscle_mass_kg | number:'1.1-1'" unit="kg" />
+          <app-metric-card label="Muscle Mass" [value]="latestMeasurement.composition.muscle_mass_kg * 2.20462 | number:'1.1-1'" unit="lbs" />
           <app-metric-card label="BMI" [value]="latestMeasurement.composition.bmi | number:'1.1-1'" unit="" />
           <app-metric-card label="BMR" [value]="latestMeasurement.composition.bmr_kcal | number:'1.0-0'" unit="kcal" />
           <app-metric-card label="Body Water" [value]="latestMeasurement.composition.body_water_percentage | number:'1.1-1'" unit="%" />
@@ -139,7 +139,7 @@ export class DashboardComponent implements OnInit {
         const d = new Date(a.date);
         return `${d.getMonth() + 1}/${d.getDate()}`;
       });
-      this.weightData = sorted.map(a => a.avg_weight_kg);
+      this.weightData = sorted.map(a => a.avg_weight_kg * 2.20462);
     });
 
     this.api.getMeasurements(this.selectedUserId, 1).subscribe(measurements => {
