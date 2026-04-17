@@ -44,6 +44,7 @@ public:
     ADD_METHOD_TO(ColadaController::habitPredictions,    "/api/habits/predictions",          drogon::Get);
     // Config
     ADD_METHOD_TO(ColadaController::getConfig,           "/api/config",                      drogon::Get);
+    ADD_METHOD_TO(ColadaController::updateConfig,        "/api/config",                      drogon::Put);
     METHOD_LIST_END
 
     // Handler signatures
@@ -67,9 +68,11 @@ public:
     void habitInsights(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
     void habitPredictions(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
     void getConfig(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
+    void updateConfig(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& cb);
 
     // Static setters for dependency injection (called from main.cpp)
     static void setDatabase(IScaleDatabase* db) { db_ = db; }
+    static void setConfigPath(const std::string& path) { config_path_ = path; }
     static void setMlTrainTrigger(std::function<void()> fn) { ml_train_trigger_ = fn; }
     static void setMlStatusGetter(std::function<Json::Value()> fn) { ml_status_getter_ = fn; }
     static void setHabitAnalyzer(hms_colada::HabitAnalyzer* ha) { habit_analyzer_ = ha; }
@@ -86,6 +89,7 @@ private:
     static hms_colada::HabitAnalyzer* habit_analyzer_;
     static hms_colada::HybridEngine* identifier_;
     static hms_colada::BodyCompositionCalculator* calculator_;
+    static std::string config_path_;
 };
 
 #endif // BUILD_WITH_WEB
