@@ -1,9 +1,8 @@
-import { Component, Input, ViewChild, ElementRef, AfterViewInit, OnChanges, OnDestroy } from '@angular/core';
-import { Chart, ChartDataset, registerables } from 'chart.js';
-import annotationPlugin from 'chartjs-plugin-annotation';
+import { Component, Input, ViewChild, ElementRef, AfterViewInit, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { Chart, registerables } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 
-Chart.register(...registerables, annotationPlugin, zoomPlugin);
+Chart.register(...registerables, zoomPlugin);
 
 @Component({
   selector: 'app-weight-chart',
@@ -13,7 +12,9 @@ Chart.register(...registerables, annotationPlugin, zoomPlugin);
       <div class="chart-header">
         <span class="chart-title">{{ title }}</span>
       </div>
-      <canvas #chartCanvas></canvas>
+      <div class="chart-container">
+        <canvas #chartCanvas></canvas>
+      </div>
     </div>
   `,
   styles: [`
@@ -21,12 +22,8 @@ Chart.register(...registerables, annotationPlugin, zoomPlugin);
       background: #1e1e2f;
       border-radius: 8px;
       padding: 16px;
-      margin-bottom: 16px;
     }
     .chart-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 8px;
     }
     .chart-title {
@@ -34,25 +31,28 @@ Chart.register(...registerables, annotationPlugin, zoomPlugin);
       font-size: 14px;
       font-weight: 600;
     }
-    canvas { width: 100% !important; }
+    .chart-container {
+      position: relative;
+      height: 280px;
+    }
   `]
 })
 export class WeightChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() title = 'Weight Trend';
   @Input() labels: string[] = [];
   @Input() data: number[] = [];
-  @Input() height = 250;
 
   @ViewChild('chartCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
   private chart: Chart | null = null;
+  private viewReady = false;
 
   ngAfterViewInit() {
+    this.viewReady = true;
     this.renderChart();
   }
 
-  ngOnChanges() {
-    if (this.chart) {
-      this.chart.destroy();
+  ngOnChanges(_changes: SimpleChanges) {
+    if (this.viewReady) {
       this.renderChart();
     }
   }
@@ -62,24 +62,21 @@ export class WeightChartComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   private renderChart() {
-    if (!this.canvasRef?.nativeElement || !this.labels.length) return;
-    const canvas = this.canvasRef.nativeElement;
-    canvas.height = this.height;
+    if (!this.canvasRef?.nativeElement || !this.data.length) return;
 
-    const skip = Math.max(1, Math.floor(this.labels.length / 15));
+    this.chart?.destroy();
 
-    this.chart = new Chart(canvas, {
+    this.chart = new Chart(this.canvasRef.nativeElement, {
       type: 'line',
       data: {
         labels: this.labels,
         datasets: [{
-          label: 'Weight (lbs)',
+          label: 'Weight (kg)',
           data: this.data,
           borderColor: '#64b5f6',
-          backgroundColor: '#64b5f633',
+          backgroundColor: 'rgba(100, 181, 246, 0.1)',
           borderWidth: 2,
-          pointRadius: 3,
-          pointHitRadius: 6,
+          pointRadius: 4,
           pointBackgroundColor: '#64b5f6',
           tension: 0.3,
           fill: true,
@@ -95,7 +92,7 @@ export class WeightChartComponent implements AfterViewInit, OnChanges, OnDestroy
             backgroundColor: '#1e1e2f',
             titleColor: '#e0e0e0',
             bodyColor: '#ccc',
-            borderColor: '#333',
+            borderColor: '#444',
             borderWidth: 1,
           },
           zoom: {
@@ -109,13 +106,7 @@ export class WeightChartComponent implements AfterViewInit, OnChanges, OnDestroy
         },
         scales: {
           x: {
-            ticks: {
-              color: '#888',
-              font: { size: 10 },
-              maxRotation: 45,
-              autoSkip: false,
-              callback: (_val: any, idx: number) => idx % skip === 0 ? this.labels[idx] : '',
-            },
+            ticks: { color: '#888', font: { size: 10 }, maxRotation: 45 },
             grid: { color: '#2a2a3a' },
           },
           y: {
