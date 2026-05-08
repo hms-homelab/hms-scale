@@ -197,6 +197,9 @@ endif()
 if(BUILD_WITH_BLE)
     target_link_libraries(${PROJECT_NAME} SDBusCpp::sdbus-c++)
     target_compile_definitions(${PROJECT_NAME} PUBLIC WITH_BLE=1)
+    # Pass major version so source can handle 1.x vs 2.x API differences
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        SDBUS_CXX_MAJOR_VERSION=${sdbus-c++_VERSION_MAJOR})
 endif()
 
 # Install target

@@ -9,14 +9,23 @@
 
 namespace hms_colada {
 
-static const sdbus::ServiceName BLUEZ{"org.bluez"};
-static const sdbus::ObjectPath  ROOT{"/"};
+// sdbus-c++ 2.x introduced ServiceName/ObjectPath as strong types;
+// 1.x uses plain std::string for both.
+#if SDBUS_CXX_MAJOR_VERSION >= 2
+using SdbusServiceName = sdbus::ServiceName;
+using SdbusObjectPath  = sdbus::ObjectPath;
+#else
+using SdbusServiceName = std::string;
+using SdbusObjectPath  = std::string;
+#endif
+
+static const SdbusServiceName BLUEZ{"org.bluez"};
+static const SdbusObjectPath  ROOT{"/"};
 
 // ── Constructor / Destructor ───────────────────────────────────────────────
 
 BleScaleClient::BleScaleClient(const std::string& mac, MeasurementCallback cb)
     : mac_(mac), callback_(std::move(cb)) {
-    // Normalise MAC to uppercase for BlueZ path construction
     std::transform(mac_.begin(), mac_.end(), mac_.begin(), ::toupper);
 }
 
@@ -57,13 +66,11 @@ void BleScaleClient::run() {
 
             if (findAndConnect()) {
                 spdlog::info("BleScaleClient: connected, waiting for measurements");
-                // Stay in loop monitoring connection state
                 while (running_ && connected_) {
                     std::this_thread::sleep_for(std::chrono::seconds(5));
-                    // Check device Connected property
                     try {
                         auto dev = sdbus::createProxy(*conn_, BLUEZ,
-                                                       sdbus::ObjectPath{device_path_});
+                                                       SdbusObjectPath{device_path_});
                         sdbus::Variant v = dev->getProperty("Connected")
                                               .onInterface("org.bluez.Device1");
                         if (!v.get<bool>()) {
@@ -112,7 +119,6 @@ std::string BleScaleClient::findAdapter() {
 // ── Device lookup by MAC ───────────────────────────────────────────────────
 
 std::string BleScaleClient::findDeviceByMac() {
-    // BlueZ device path: /org/bluez/hci0/dev_D0_4D_00_51_4F_8F
     std::string mac_path = mac_;
     std::replace(mac_path.begin(), mac_path.end(), ':', '_');
     std::string expected = adapter_path_ + "/dev_" + mac_path;
@@ -141,12 +147,11 @@ std::string BleScaleClient::findDeviceByMac() {
 bool BleScaleClient::findAndConnect() {
     std::lock_guard<std::mutex> lk(connect_mutex_);
 
-    // Try cached path first
     device_path_ = findDeviceByMac();
 
     if (device_path_.empty()) {
         spdlog::info("BleScaleClient: device not cached, starting discovery...");
-        auto adapter = sdbus::createProxy(*conn_, BLUEZ, sdbus::ObjectPath{adapter_path_});
+        auto adapter = sdbus::createProxy(*conn_, BLUEZ, SdbusObjectPath{adapter_path_});
         try {
             adapter->callMethod("StartDiscovery").onInterface("org.bluez.Adapter1");
         } catch (const std::exception& e) {
@@ -174,7 +179,7 @@ bool BleScaleClient::findAndConnect() {
 }
 
 bool BleScaleClient::connectDevice(const std::string& device_path) {
-    auto device = sdbus::createProxy(*conn_, BLUEZ, sdbus::ObjectPath{device_path});
+    auto device = sdbus::createProxy(*conn_, BLUEZ, SdbusObjectPath{device_path});
 
     bool ok = false;
     for (int attempt = 0; attempt < 3; attempt++) {
@@ -190,7 +195,6 @@ bool BleScaleClient::connectDevice(const std::string& device_path) {
     }
     if (!ok) return false;
 
-    // Wait for ServicesResolved
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
     while (std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -252,7 +256,7 @@ bool BleScaleClient::discoverGatt() {
 bool BleScaleClient::enableNotifications() {
     try {
         notify_proxy_ = sdbus::createProxy(*conn_, BLUEZ,
-                                            sdbus::ObjectPath{notify_char_path_});
+                                            SdbusObjectPath{notify_char_path_});
 
         notify_proxy_->uponSignal("PropertiesChanged")
             .onInterface("org.freedesktop.DBus.Properties")
@@ -281,7 +285,7 @@ void BleScaleClient::disconnect() {
     notify_proxy_.reset();
     if (!device_path_.empty() && conn_) {
         try {
-            auto dev = sdbus::createProxy(*conn_, BLUEZ, sdbus::ObjectPath{device_path_});
+            auto dev = sdbus::createProxy(*conn_, BLUEZ, SdbusObjectPath{device_path_});
             dev->callMethod("Disconnect").onInterface("org.bluez.Device1");
         } catch (...) {}
     }
@@ -319,9 +323,8 @@ void BleScaleClient::parseMeasurement(const std::vector<uint8_t>& data) {
     spdlog::debug("BleScaleClient: raw packet — weight={:.3f}kg stable={} impedance={}Ω",
                   weight_kg, stable, impedance_raw);
 
-    // Lock-on-stability: only fire for stable, meaningful, new measurements
-    if (!stable)                                               return;
-    if (weight_kg < MIN_WEIGHT_KG)                             return;
+    if (!stable)                                                    return;
+    if (weight_kg < MIN_WEIGHT_KG)                                  return;
     if (std::fabs(weight_kg - last_locked_weight_) < LOCK_DELTA_KG) return;
 
     last_locked_weight_ = static_cast<float>(weight_kg);
