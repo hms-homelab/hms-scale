@@ -6,7 +6,13 @@
 
 C++ smart scale service with ML user identification, BIA body composition analysis, and Angular dashboard. 5 MB memory.
 
-Receives measurements from an ESPHome scale via MQTT, identifies which household member stepped on using a 4-stage hybrid engine (deterministic + Random Forest ML), calculates body composition metrics, and publishes results to Home Assistant.
+Connects to an Etekcity BLE smart scale (directly via BlueZ or via the [hms-scale-esp](https://github.com/hms-homelab/hms-scale-esp) ESP32 gateway), identifies which household member stepped on using a 4-stage hybrid engine (deterministic + Random Forest ML), calculates body composition metrics, and publishes results to Home Assistant.
+
+## Screenshots
+
+| Dashboard | Users | Habits |
+|-----------|-------|--------|
+| ![Dashboard](docs/screenshots/screenshot-dashboard.png) | ![Users](docs/screenshots/screenshot-users.png) | ![Habits](docs/screenshots/screenshot-habits.png) |
 
 ## Features
 
@@ -19,6 +25,38 @@ Receives measurements from an ESPHome scale via MQTT, identifies which household
 - Web-based configuration management
 - 108 unit tests
 
+## Scale Connectivity
+
+Two modes — use whichever fits your setup:
+
+### Direct BLE (recommended)
+hms-scale connects directly to the Etekcity scale via BlueZ on the host. No extra hardware required if your server has Bluetooth.
+
+```bash
+cmake -DBUILD_WITH_BLE=ON ..
+
+# config.json
+{
+  "ble": {
+    "enabled": true,
+    "scale_mac": "D0:4D:00:51:4F:8F"
+  }
+}
+```
+
+Or via environment variable: `BLE_ENABLED=true BLE_SCALE_MAC=D0:4D:00:51:4F:8F`
+
+Requires: `libsdbus-c++-dev`
+
+### ESP32 Gateway
+Use [hms-scale-esp](https://github.com/hms-homelab/hms-scale-esp) — an ESP32-C3 that reads the scale via BLE and POSTs measurements to hms-scale over HTTP. Useful when your server doesn't have Bluetooth.
+
+```bash
+cmake ..  # BLE_ENABLED=false (default), MQTT still works
+```
+
+Both modes feed into the same identification and analytics pipeline.
+
 ## Quick Start
 
 ### 1. Build
@@ -30,9 +68,12 @@ sudo apt install build-essential cmake libcurl4-openssl-dev libpq-dev \
     libpaho-mqttpp-dev nlohmann-json3-dev libspdlog-dev libdrogon-dev \
     uuid-dev libbrotli-dev zlib1g-dev
 
+# With direct BLE support
+sudo apt install libsdbus-c++-dev
+
 # Backend
 mkdir build && cd build
-cmake ..
+cmake -DBUILD_WITH_BLE=ON ..   # or omit for ESP gateway mode
 make -j$(nproc)
 
 # Tests
@@ -88,6 +129,8 @@ Copy `config.json.example` to `~/.hms-colada/config.json`, or use environment va
 | `STATIC_DIR` | ./static/browser | Frontend files path |
 | `ML_ENABLED` | false | Enable background ML training |
 | `ML_SCHEDULE` | weekly | Training schedule (daily/weekly/monthly) |
+| `BLE_ENABLED` | false | Enable direct BLE scale connectivity |
+| `BLE_SCALE_MAC` | D0:4D:00:51:4F:8F | Etekcity scale MAC address |
 
 Configuration can also be managed from the web UI at `/settings`.
 
@@ -159,10 +202,15 @@ HA auto-discovery publishes sensor configs to `homeassistant/sensor/colada_scale
 ## Architecture
 
 ```
-ESPHome Scale (ESP32)
+Etekcity BLE Scale
     |
-    | MQTT (giraffe_scale/measurement)
-    v
+    +-- Direct BLE (BlueZ/sdbus-c++)     -- hms-scale on a BT-capable host
+    |
+    +-- hms-scale-esp (ESP32-C3)         -- HTTP webhook for headless servers
+            |
+            | POST /api/webhook/measurement
+            |
+            v
 hms-scale
     |
     +-- Hybrid Identification Engine
@@ -201,6 +249,7 @@ PostgreSQL          Home Assistant          Angular Dashboard
 | GET | `/api/measurements` | Query measurements (`?user_id=&days=`) |
 | GET | `/api/measurements/unassigned` | Unassigned measurements |
 | POST | `/api/measurements/{id}/assign` | Manual user assignment |
+| POST | `/api/webhook/measurement` | ESP32 direct HTTP measurement submission |
 | POST | `/api/ml/train` | Trigger ML model training |
 | GET | `/api/ml/status` | Training status and metrics |
 | POST | `/api/ml/predict` | Predict user from weight/impedance |
@@ -212,25 +261,9 @@ PostgreSQL          Home Assistant          Angular Dashboard
 | GET | `/api/habits/predictions` | Weight predictions |
 | GET/PUT | `/api/config` | Read or update service configuration |
 
-## Docker
-
-```bash
-# Build
-docker build -t hms-scale .
-
-# Run
-docker run -d \
-    -e DB_HOST=192.168.1.100 \
-    -e DB_PASSWORD=your_password \
-    -e MQTT_BROKER=192.168.1.100 \
-    -e MQTT_USER=user \
-    -e MQTT_PASSWORD=pass \
-    -p 8889:8889 \
-    hms-scale
-```
-
 ## Related Projects
 
+- [hms-scale-esp](https://github.com/hms-homelab/hms-scale-esp) -- ESP32-C3 BLE gateway (alternative to direct BLE)
 - [hms-shared](https://github.com/hms-homelab/hms-shared) -- shared C++ libraries (MqttClient, DbPool)
 - [hms-cpap](https://github.com/hms-homelab/hms-cpap) -- CPAP therapy data collection and ML analysis
 - [hms-tuya](https://github.com/hms-homelab/hms-tuya) -- Tuya WiFi MQTT bridge
