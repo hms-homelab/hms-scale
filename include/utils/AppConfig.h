@@ -31,6 +31,13 @@ struct AppConfig {
         std::string user_selector_topic = "colada_scale/user_selector/set";
     } mqtt;
 
+    // BLE (direct Bluetooth connection to scale)
+    struct Ble {
+        bool enabled = false;
+        std::string scale_mac = "D0:4D:00:51:4F:8F";
+        int reconnect_delay_s = 30;
+    } ble;
+
     // ML Training
     struct MlTraining {
         bool enabled = false;
@@ -107,6 +114,13 @@ struct AppConfig {
             if (!v.empty()) mqtt.user_selector_topic = v;
         }
 
+        // BLE
+        if (!ble.enabled && env("BLE_ENABLED") == "true") ble.enabled = true;
+        if (ble.scale_mac == "D0:4D:00:51:4F:8F") {
+            auto v = env("BLE_SCALE_MAC");
+            if (!v.empty()) ble.scale_mac = v;
+        }
+
         // ML Training
         if (!ml_training.enabled && env("ML_ENABLED") == "true")
             ml_training.enabled = true;
@@ -175,6 +189,13 @@ struct AppConfig {
                 if (m.contains("user_selector_topic"))  config.mqtt.user_selector_topic = m["user_selector_topic"];
             }
 
+            if (j.contains("ble")) {
+                auto& b = j["ble"];
+                if (b.contains("enabled"))         config.ble.enabled       = b["enabled"];
+                if (b.contains("scale_mac"))       config.ble.scale_mac     = b["scale_mac"];
+                if (b.contains("reconnect_delay_s")) config.ble.reconnect_delay_s = b["reconnect_delay_s"];
+            }
+
             if (j.contains("ml_training")) {
                 auto& ml = j["ml_training"];
                 if (ml.contains("enabled"))           config.ml_training.enabled = ml["enabled"];
@@ -213,6 +234,10 @@ struct AppConfig {
             j["mqtt"]["client_id"] = mqtt.client_id;
             j["mqtt"]["scale_topic"] = mqtt.scale_topic;
             j["mqtt"]["user_selector_topic"] = mqtt.user_selector_topic;
+
+            j["ble"]["enabled"]           = ble.enabled;
+            j["ble"]["scale_mac"]         = ble.scale_mac;
+            j["ble"]["reconnect_delay_s"] = ble.reconnect_delay_s;
 
             j["ml_training"]["enabled"] = ml_training.enabled;
             j["ml_training"]["schedule"] = ml_training.schedule;

@@ -120,6 +120,15 @@ else()
     target_link_libraries(hms_db PUBLIC ${PQXX_LIB} ${PQ_LIB})
 endif()
 
+# BLE support (optional, requires libsdbus-c++)
+option(BUILD_WITH_BLE "Build with direct BLE scale connectivity via BlueZ" OFF)
+if(BUILD_WITH_BLE)
+    find_package(sdbus-c++ REQUIRED)
+    message(STATUS "BLE: Enabled (sdbus-c++ ${sdbus-c++_VERSION})")
+else()
+    message(STATUS "BLE: Disabled (pass -DBUILD_WITH_BLE=ON to enable)")
+endif()
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -135,6 +144,10 @@ set(SOURCES
     src/analytics/HabitAnalyzer.cpp
     src/controllers/ColadaController.cpp
 )
+
+if(BUILD_WITH_BLE)
+    list(APPEND SOURCES src/ble/BleScaleClient.cpp)
+endif()
 
 # Executable
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -179,6 +192,11 @@ endif()
 
 if(BUILD_WITH_WEB)
     target_link_libraries(${PROJECT_NAME} Drogon::Drogon)
+endif()
+
+if(BUILD_WITH_BLE)
+    target_link_libraries(${PROJECT_NAME} SDBusCpp::sdbus-c++)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC WITH_BLE=1)
 endif()
 
 # Install target

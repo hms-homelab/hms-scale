@@ -12,6 +12,9 @@
 #include "analytics/HabitAnalyzer.h"
 #include "mqtt/ScaleSubscriber.h"
 #include "mqtt/DiscoveryPublisher.h"
+#ifdef WITH_BLE
+#include "ble/BleScaleClient.h"
+#endif
 
 #ifdef BUILD_WITH_WEB
 #include <drogon/drogon.h>
@@ -108,6 +111,23 @@ int main() {
             spdlog::warn("Failed to connect to MQTT broker, continuing without MQTT");
         }
     }
+
+    // ── BLE Scale Client ────────────────────────────────────────────────
+#ifdef WITH_BLE
+    std::unique_ptr<hms_colada::BleScaleClient> ble_client;
+
+    if (config.ble.enabled && subscriber) {
+        ble_client = std::make_unique<hms_colada::BleScaleClient>(
+            config.ble.scale_mac,
+            [&subscriber](double weight_kg, double weight_lb, double impedance) {
+                subscriber->processMeasurementWithResult(weight_kg, weight_lb, impedance);
+            });
+        ble_client->start();
+        spdlog::info("BLE scale client started (MAC: {})", config.ble.scale_mac);
+    } else if (config.ble.enabled) {
+        spdlog::warn("BLE enabled but subscriber not ready — skipping BLE");
+    }
+#endif
 
     // ── ML Training Service ─────────────────────────────────────────────
     std::unique_ptr<hms_colada::MLTrainingService> ml_service;
