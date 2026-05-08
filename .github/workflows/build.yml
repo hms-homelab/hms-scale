@@ -12,6 +12,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # ── Linux Build + Docker ──────────────────────────────────────────
   build-and-test:
     runs-on: ubuntu-latest
     permissions:
@@ -48,18 +49,19 @@ jobs:
             nlohmann-json3-dev libspdlog-dev libsqlite3-dev \
             libdrogon-dev libgtest-dev libgmock-dev \
             uuid-dev libbrotli-dev zlib1g-dev \
-            libmariadb-dev libhiredis-dev libyaml-cpp-dev
+            libmariadb-dev libhiredis-dev libyaml-cpp-dev \
+            libsdbus-c++-dev
 
       - name: Build hms-scale
         run: |
           mkdir build && cd build
-          cmake -DBUILD_TESTS=ON -DBUILD_WITH_WEB=ON ..
+          cmake -DBUILD_TESTS=ON -DBUILD_WITH_WEB=ON -DBUILD_WITH_BLE=ON ..
           make -j$(nproc)
 
       - name: Run tests
         run: cd build && ./tests/run_tests
 
-      # ── Docker Image ────────────────────────────────────────────
+      # ── Docker Image (amd64 + arm64) ────────────────────────────
       - name: Set up QEMU
         if: github.event_name != 'pull_request'
         uses: docker/setup-qemu-action@v3
@@ -94,7 +96,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -110,6 +112,92 @@ jobs:
             orgs/${{ github.repository_owner }}/packages/container/hms-scale \
             -f visibility=public || echo "Could not set visibility (may need org admin token)"
 
+  # ── Windows Build ─────────────────────────────────────────────────
+  windows-build:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request'
+    runs-on: windows-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Angular UI
+        working-directory: frontend
+        run: npx ng build --configuration production
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\vcpkg\archives
+          key: vcpkg-win-x64-static-md-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-win-x64-static-md-
+
+      - name: Install vcpkg dependencies
+        run: vcpkg install --triplet x64-windows-static-md
+
+      - name: Build hms-scale (MSVC)
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+                -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+                -DBUILD_TESTS=OFF -DBUILD_WITH_WEB=ON -DBUILD_WITH_BLE=OFF ..
+          cmake --build . --config Release --parallel
+
+      - name: Bundle release
+        run: |
+          mkdir release
+          Copy-Item build\Release\hms_colada.exe release\
+          Get-ChildItem -Path build\Release\*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination release\
+          mkdir release\static\browser -Force
+          Copy-Item -Recurse frontend\dist\browser\* release\static\browser\
+          @'
+          {
+            "web_port": 8889,
+            "database": {
+              "host": "localhost",
+              "port": 5432,
+              "name": "colada_scale",
+              "user": "colada_user",
+              "password": ""
+            },
+            "mqtt": {
+              "enabled": true,
+              "broker": "localhost",
+              "port": 1883,
+              "username": "",
+              "password": ""
+            },
+            "ble": {
+              "enabled": false,
+              "scale_mac": "D0:4D:00:51:4F:8F"
+            }
+          }
+          '@ | Out-File -Encoding utf8 release\config.example.json
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hms-scale-windows-x64
+          path: release/
+
   # ── GitHub Release (on tag push) ──────────────────────────────────
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -119,7 +207,23 @@ jobs:
       contents: write
 
     steps:
+      - name: Download Windows artifact
+        id: download-windows
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: hms-scale-windows-x64
+          path: windows-release/
+
+      - name: Create Windows zip
+        if: steps.download-windows.outcome == 'success'
+        run: |
+          cd windows-release
+          zip -r ../hms-scale-windows-x64.zip .
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          files: |
+            hms-scale-windows-x64.zip

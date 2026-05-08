@@ -1,0 +1,19 @@
+{
+  "name": "hms-scale",
+  "version-string": "1.1.0",
+  "description": "Smart scale service with ML user identification and BIA body composition",
+  "dependencies": [
+    "curl",
+    "jsoncpp",
+    "nlohmann-json",
+    "spdlog",
+    "sqlite3",
+    "openssl",
+    "paho-mqtt",
+    "paho-mqttpp3",
+    "libpqxx",
+    "drogon",
+    "gtest",
+    "zlib"
+  ]
+}
