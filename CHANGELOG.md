@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0 — 2026-05-08
+
+### Added
+- Direct BLE connectivity to Etekcity scale via BlueZ D-Bus (sdbus-c++) — no ESP32 gateway required
+- `BleScaleClient`: persistent reconnect loop, MAC-based scan, notify-only on characteristic 0xFFF1 (service 0xFFF0)
+- 22-byte Etekcity packet parser with lock-on-stability logic (mirrors ESP-IDF firmware)
+- `BUILD_WITH_BLE=ON` CMake option; sdbus-c++ dependency
+- `ble` config section in `~/.hms-colada/config.json` with `enabled`, `scale_mac`, `reconnect_delay_s`
+- `BLE_ENABLED` and `BLE_SCALE_MAC` environment variable fallbacks
+
 ## v1.0.1 — 2026-04-17
 
 ### Fixed
