@@ -3,7 +3,7 @@
 ## v1.1.0 — 2026-05-08
 
 ### Added
-- Direct BLE connectivity to Etekcity scale via BlueZ D-Bus (sdbus-c++) — no ESP32 gateway required
+- Direct BLE connectivity to Etekcity scale via BlueZ D-Bus (sdbus-c++)
 - `BleScaleClient`: persistent reconnect loop, MAC-based scan, notify-only on characteristic 0xFFF1 (service 0xFFF0)
 - 22-byte Etekcity packet parser with lock-on-stability logic (mirrors ESP-IDF firmware)
 - `BUILD_WITH_BLE=ON` CMake option; sdbus-c++ dependency
