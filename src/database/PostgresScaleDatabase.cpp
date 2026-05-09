@@ -19,49 +19,6 @@ bool PostgresScaleDatabase::connect() {
     }
 }
 
-std::string PostgresScaleDatabase::fieldOrEmpty(const pqxx::field& f) const {
-    return f.is_null() ? "" : std::string(f.c_str());
-}
-
-ScaleUser PostgresScaleDatabase::rowToUser(const pqxx::row& r) const {
-    ScaleUser u;
-    u.id = fieldOrEmpty(r["id"]);
-    u.name = fieldOrEmpty(r["name"]);
-    u.date_of_birth = fieldOrEmpty(r["date_of_birth"]);
-    u.sex = fieldOrEmpty(r["sex"]);
-    u.height_cm = r["height_cm"].is_null() ? 0 : r["height_cm"].as<double>();
-    u.expected_weight_kg = r["expected_weight_kg"].is_null() ? 0 : r["expected_weight_kg"].as<double>();
-    u.weight_tolerance_kg = r["weight_tolerance_kg"].is_null() ? 3.0 : r["weight_tolerance_kg"].as<double>();
-    u.is_active = r["is_active"].is_null() ? true : r["is_active"].as<bool>();
-    u.created_at = fieldOrEmpty(r["created_at"]);
-    u.updated_at = fieldOrEmpty(r["updated_at"]);
-    u.last_measurement_at = fieldOrEmpty(r["last_measurement_at"]);
-    return u;
-}
-
-ScaleMeasurement PostgresScaleDatabase::rowToMeasurement(const pqxx::row& r) const {
-    ScaleMeasurement m;
-    m.id = fieldOrEmpty(r["id"]);
-    m.user_id = fieldOrEmpty(r["user_id"]);
-    m.weight_kg = r["weight_kg"].is_null() ? 0 : r["weight_kg"].as<double>();
-    m.weight_lbs = r["weight_lbs"].is_null() ? 0 : r["weight_lbs"].as<double>();
-    m.impedance_ohm = r["impedance_ohm"].is_null() ? 0 : r["impedance_ohm"].as<double>();
-    m.composition.body_fat_percentage = r["body_fat_percentage"].is_null() ? 0 : r["body_fat_percentage"].as<double>();
-    m.composition.lean_mass_kg = r["lean_mass_kg"].is_null() ? 0 : r["lean_mass_kg"].as<double>();
-    m.composition.muscle_mass_kg = r["muscle_mass_kg"].is_null() ? 0 : r["muscle_mass_kg"].as<double>();
-    m.composition.bone_mass_kg = r["bone_mass_kg"].is_null() ? 0 : r["bone_mass_kg"].as<double>();
-    m.composition.body_water_percentage = r["body_water_percentage"].is_null() ? 0 : r["body_water_percentage"].as<double>();
-    m.composition.visceral_fat_rating = r["visceral_fat_rating"].is_null() ? 0 : r["visceral_fat_rating"].as<int>();
-    m.composition.bmi = r["bmi"].is_null() ? 0 : r["bmi"].as<double>();
-    m.composition.bmr_kcal = r["bmr_kcal"].is_null() ? 0 : r["bmr_kcal"].as<int>();
-    m.composition.metabolic_age = r["metabolic_age"].is_null() ? 0 : r["metabolic_age"].as<int>();
-    m.composition.protein_percentage = r["protein_percentage"].is_null() ? 0 : r["protein_percentage"].as<double>();
-    m.identification_confidence = r["identification_confidence"].is_null() ? 0 : r["identification_confidence"].as<double>();
-    m.identification_method = fieldOrEmpty(r["identification_method"]);
-    m.measured_at = fieldOrEmpty(r["measured_at"]);
-    m.created_at = fieldOrEmpty(r["created_at"]);
-    return m;
-}
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
@@ -73,8 +30,8 @@ std::vector<ScaleUser> PostgresScaleDatabase::getUsers(bool active_only) {
         if (active_only) sql += " WHERE is_active = true";
         sql += " ORDER BY name";
         auto result = txn.exec(sql);
-        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
-            users.push_back(rowToUser(result[i]));
+        for (const auto& r : result)
+            users.push_back(rowToUser(r));
         txn.commit();
     } catch (const std::exception& e) {
         spdlog::error("getUsers failed: {}", e.what());
@@ -175,8 +132,8 @@ std::vector<ScaleUser> PostgresScaleDatabase::getUsersByWeightRange(double weigh
             "ORDER BY ABS(expected_weight_kg - $1)",
             weight_kg);
         txn.commit();
-        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
-            users.push_back(rowToUser(result[i]));
+        for (const auto& r : result)
+            users.push_back(rowToUser(r));
     } catch (const std::exception& e) {
         spdlog::error("getUsersByWeightRange failed: {}", e.what());
     }
@@ -251,8 +208,8 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurements(
             "ORDER BY measured_at DESC LIMIT $3 OFFSET $4",
             user_id, days, limit, offset);
         txn.commit();
-        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
-            measurements.push_back(rowToMeasurement(result[i]));
+        for (const auto& r : result)
+            measurements.push_back(rowToMeasurement(r));
     } catch (const std::exception& e) {
         spdlog::error("getMeasurements failed: {}", e.what());
     }
@@ -284,8 +241,8 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getUnassigned(int limit) {
             "WHERE user_id IS NULL ORDER BY measured_at DESC LIMIT $1",
             limit);
         txn.commit();
-        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
-            measurements.push_back(rowToMeasurement(result[i]));
+        for (const auto& r : result)
+            measurements.push_back(rowToMeasurement(r));
     } catch (const std::exception& e) {
         spdlog::error("getUnassigned failed: {}", e.what());
     }
@@ -344,8 +301,7 @@ std::vector<DailyAverage> PostgresScaleDatabase::getDailyAverages(
             "GROUP BY DATE(measured_at) ORDER BY date DESC",
             user_id, days);
         txn.commit();
-        for (pqxx::result::size_type i = 0; i < result.size(); ++i) {
-            const pqxx::row r = result[i];
+        for (const auto& r : result) {
             DailyAverage da;
             da.date = fieldOrEmpty(r["date"]);
             da.user_id = user_id;
@@ -381,7 +337,7 @@ std::vector<WeeklyTrend> PostgresScaleDatabase::getWeeklyTrends(
         double prev_weight = 0;
         // Process in reverse (oldest first) for weight_change calculation
         for (int i = static_cast<int>(result.size()) - 1; i >= 0; --i) {
-            const pqxx::row r = result[static_cast<pqxx::result::size_type>(i)];
+            const auto r = result[static_cast<pqxx::result::size_type>(i)];
             WeeklyTrend wt;
             wt.week_start = fieldOrEmpty(r["week_start"]);
             wt.user_id = user_id;
@@ -417,8 +373,8 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurementsForML(int mi
             "ORDER BY m.user_id, m.measured_at",
             min_per_user);
         txn.commit();
-        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
-            measurements.push_back(rowToMeasurement(result[i]));
+        for (const auto& r : result)
+            measurements.push_back(rowToMeasurement(r));
     } catch (const std::exception& e) {
         spdlog::error("getMeasurementsForML failed: {}", e.what());
     }
