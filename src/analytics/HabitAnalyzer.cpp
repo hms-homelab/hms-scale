@@ -36,7 +36,11 @@ static bool parseTimestamp(const std::string& ts, std::tm& out) {
 
 static std::time_t toEpoch(const std::tm& t) {
     std::tm copy = t;
+#ifdef _WIN32
+    return _mkgmtime(&copy);
+#else
     return timegm(&copy);
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +79,11 @@ int HabitAnalyzer::dayOfWeek(const std::string& timestamp) {
     if (!parseTimestamp(timestamp, t)) return 0;
     std::time_t epoch = toEpoch(t);
     std::tm utc{};
+#ifdef _WIN32
+    gmtime_s(&utc, &epoch);
+#else
     gmtime_r(&epoch, &utc);
+#endif
     // tm_wday: 0=Sunday. Convert to 0=Monday.
     return (utc.tm_wday + 6) % 7;
 }

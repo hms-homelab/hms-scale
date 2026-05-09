@@ -73,9 +73,8 @@ std::vector<ScaleUser> PostgresScaleDatabase::getUsers(bool active_only) {
         if (active_only) sql += " WHERE is_active = true";
         sql += " ORDER BY name";
         auto result = txn.exec(sql);
-        for (const auto& r : result) {
-            users.push_back(rowToUser(r));
-        }
+        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
+            users.push_back(rowToUser(result[i]));
         txn.commit();
     } catch (const std::exception& e) {
         spdlog::error("getUsers failed: {}", e.what());
@@ -176,9 +175,8 @@ std::vector<ScaleUser> PostgresScaleDatabase::getUsersByWeightRange(double weigh
             "ORDER BY ABS(expected_weight_kg - $1)",
             weight_kg);
         txn.commit();
-        for (const auto& r : result) {
-            users.push_back(rowToUser(r));
-        }
+        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
+            users.push_back(rowToUser(result[i]));
     } catch (const std::exception& e) {
         spdlog::error("getUsersByWeightRange failed: {}", e.what());
     }
@@ -253,9 +251,8 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurements(
             "ORDER BY measured_at DESC LIMIT $3 OFFSET $4",
             user_id, days, limit, offset);
         txn.commit();
-        for (const auto& r : result) {
-            measurements.push_back(rowToMeasurement(r));
-        }
+        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
+            measurements.push_back(rowToMeasurement(result[i]));
     } catch (const std::exception& e) {
         spdlog::error("getMeasurements failed: {}", e.what());
     }
@@ -287,9 +284,8 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getUnassigned(int limit) {
             "WHERE user_id IS NULL ORDER BY measured_at DESC LIMIT $1",
             limit);
         txn.commit();
-        for (const auto& r : result) {
-            measurements.push_back(rowToMeasurement(r));
-        }
+        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
+            measurements.push_back(rowToMeasurement(result[i]));
     } catch (const std::exception& e) {
         spdlog::error("getUnassigned failed: {}", e.what());
     }
@@ -348,7 +344,8 @@ std::vector<DailyAverage> PostgresScaleDatabase::getDailyAverages(
             "GROUP BY DATE(measured_at) ORDER BY date DESC",
             user_id, days);
         txn.commit();
-        for (const auto& r : result) {
+        for (pqxx::result::size_type i = 0; i < result.size(); ++i) {
+            const pqxx::row r = result[i];
             DailyAverage da;
             da.date = fieldOrEmpty(r["date"]);
             da.user_id = user_id;
@@ -383,9 +380,8 @@ std::vector<WeeklyTrend> PostgresScaleDatabase::getWeeklyTrends(
 
         double prev_weight = 0;
         // Process in reverse (oldest first) for weight_change calculation
-        std::vector<pqxx::row> rows(result.begin(), result.end());
-        for (int i = static_cast<int>(rows.size()) - 1; i >= 0; --i) {
-            const auto& r = rows[i];
+        for (int i = static_cast<int>(result.size()) - 1; i >= 0; --i) {
+            const pqxx::row r = result[static_cast<pqxx::result::size_type>(i)];
             WeeklyTrend wt;
             wt.week_start = fieldOrEmpty(r["week_start"]);
             wt.user_id = user_id;
@@ -421,9 +417,8 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurementsForML(int mi
             "ORDER BY m.user_id, m.measured_at",
             min_per_user);
         txn.commit();
-        for (const auto& r : result) {
-            measurements.push_back(rowToMeasurement(r));
-        }
+        for (pqxx::result::size_type i = 0; i < result.size(); ++i)
+            measurements.push_back(rowToMeasurement(result[i]));
     } catch (const std::exception& e) {
         spdlog::error("getMeasurementsForML failed: {}", e.what());
     }

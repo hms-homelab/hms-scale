@@ -153,7 +153,11 @@ ScaleSubscriber::ProcessResult ScaleSubscriber::processMeasurementWithResult(
     auto now = std::chrono::system_clock::now();
     auto time_t_now = std::chrono::system_clock::to_time_t(now);
     std::tm tm_now{};
+#ifdef _WIN32
+    gmtime_s(&tm_now, &time_t_now);
+#else
     gmtime_r(&time_t_now, &tm_now);
+#endif
     std::ostringstream ts;
     ts << std::put_time(&tm_now, "%Y-%m-%dT%H:%M:%SZ");
     std::string timestamp = ts.str();
