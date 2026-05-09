@@ -51,7 +51,6 @@ endif()
 
 # Paho MQTT
 if(MSVC)
-    find_package(eclipse-paho-mqtt-c CONFIG REQUIRED)
     find_package(PahoMqttCpp CONFIG REQUIRED)
 else()
     find_library(PAHO_MQTTPP3_LIB paho-mqttpp3)
@@ -97,7 +96,6 @@ if(MSVC)
     target_link_libraries(hms_mqtt PUBLIC
         spdlog::spdlog
         PahoMqttCpp::paho-mqttpp3
-        eclipse-paho-mqtt-c::paho-mqtt3as
     )
 else()
     target_link_libraries(hms_mqtt PUBLIC
@@ -162,7 +160,6 @@ if(MSVC)
     target_link_libraries(${PROJECT_NAME}
         JsonCpp::JsonCpp
         PahoMqttCpp::paho-mqttpp3
-        eclipse-paho-mqtt-c::paho-mqtt3as
         OpenSSL::SSL
         OpenSSL::Crypto
         libpqxx::pqxx
