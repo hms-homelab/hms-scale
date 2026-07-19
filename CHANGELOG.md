@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **PostgreSQL connection never recovered after the server dropped it.** `PostgresScaleDatabase` created a single `pqxx::connection` in `connect()` and all 16 query methods used it directly, with no health check and no reconnect. A Postgres restart, idle timeout, or network blip therefore broke *every* query permanently — the live service logged `getMeasurementsForML failed: Lost connection to the database server` once a minute for weeks and reported "No measurements available for training" while the database sat healthy with 857 measurements. Queries now go through a `db()` accessor that transparently reconnects, and `createMeasurement` retries once on a broken connection so a weigh-in — which the scale reports exactly once — is not silently lost. Adds regression tests that drop the connection server-side and assert recovery, including across repeated drops.
+
 ## v1.1.0 — 2026-05-08
 
 ### Added

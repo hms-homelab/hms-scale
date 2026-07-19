@@ -19,13 +19,29 @@ bool PostgresScaleDatabase::connect() {
     }
 }
 
+pqxx::connection& PostgresScaleDatabase::db() {
+    // Fast path: connection is up.
+    if (conn_ && conn_->is_open()) return *conn_;
+
+    // The server dropped us (restart, idle timeout, network blip). libpqxx marks
+    // the connection closed once a query has failed on it, so this is where we
+    // recover instead of failing every subsequent query until a manual restart.
+    spdlog::warn("PostgreSQL connection is down - reconnecting...");
+    conn_.reset();
+    if (!connect() || !conn_ || !conn_->is_open()) {
+        throw pqxx::broken_connection("PostgreSQL reconnect failed");
+    }
+    spdlog::info("PostgreSQL reconnected");
+    return *conn_;
+}
+
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
 std::vector<ScaleUser> PostgresScaleDatabase::getUsers(bool active_only) {
     std::vector<ScaleUser> users;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         std::string sql = "SELECT * FROM scale_users";
         if (active_only) sql += " WHERE is_active = true";
         sql += " ORDER BY name";
@@ -41,7 +57,7 @@ std::vector<ScaleUser> PostgresScaleDatabase::getUsers(bool active_only) {
 
 std::optional<ScaleUser> PostgresScaleDatabase::getUser(const std::string& id) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT * FROM scale_users WHERE id = $1", id);
         txn.commit();
@@ -55,7 +71,7 @@ std::optional<ScaleUser> PostgresScaleDatabase::getUser(const std::string& id) {
 
 std::optional<ScaleUser> PostgresScaleDatabase::createUser(const ScaleUser& user) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "INSERT INTO scale_users (id, name, date_of_birth, sex, height_cm, "
             "expected_weight_kg, weight_tolerance_kg, is_active) "
@@ -78,7 +94,7 @@ bool PostgresScaleDatabase::updateUser(const std::string& id, const nlohmann::js
         int param_idx = 1;
         // We'll build the query with string concatenation for field names
         // but use parameterized values via a manual approach
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
 
         // Simple approach: update each field individually
         for (auto it = fields.begin(); it != fields.end(); ++it) {
@@ -111,7 +127,7 @@ bool PostgresScaleDatabase::updateUser(const std::string& id, const nlohmann::js
 
 bool PostgresScaleDatabase::deleteUser(const std::string& id) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         txn.exec_params(
             "UPDATE scale_users SET is_active = false, updated_at = NOW() WHERE id = $1", id);
         txn.commit();
@@ -125,7 +141,7 @@ bool PostgresScaleDatabase::deleteUser(const std::string& id) {
 std::vector<ScaleUser> PostgresScaleDatabase::getUsersByWeightRange(double weight_kg) {
     std::vector<ScaleUser> users;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT * FROM scale_users "
             "WHERE is_active = true AND ABS(expected_weight_kg - $1) <= weight_tolerance_kg "
@@ -143,8 +159,14 @@ std::vector<ScaleUser> PostgresScaleDatabase::getUsersByWeightRange(double weigh
 // ── Measurements ───────────────────────────────────────────────────────────────
 
 std::optional<ScaleMeasurement> PostgresScaleDatabase::createMeasurement(const ScaleMeasurement& m) {
+    // A weigh-in is not reproducible: the scale reports it once. If the server
+    // dropped the connection since our last query, the FIRST attempt is the one
+    // that discovers it (libpqxx only notices on I/O), so a plain reconnect-on-
+    // next-call would still lose this reading. Retry once against a fresh
+    // connection instead. Reads elsewhere can safely self-heal on their next call.
+    for (int attempt = 0; attempt < 2; ++attempt) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
 
         // Use nullptr for empty user_id (unassigned measurement)
         std::string sql =
@@ -191,17 +213,27 @@ std::optional<ScaleMeasurement> PostgresScaleDatabase::createMeasurement(const S
         txn.commit();
         if (result.empty()) return std::nullopt;
         return rowToMeasurement(result[0]);
+    } catch (const pqxx::broken_connection& e) {
+        conn_.reset();  // force db() to build a fresh connection on the retry
+        if (attempt == 0) {
+            spdlog::warn("createMeasurement: connection lost, retrying once: {}", e.what());
+            continue;
+        }
+        spdlog::error("createMeasurement failed after reconnect: {}", e.what());
+        return std::nullopt;
     } catch (const std::exception& e) {
         spdlog::error("createMeasurement failed: {}", e.what());
         return std::nullopt;
     }
+    }
+    return std::nullopt;
 }
 
 std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurements(
     const std::string& user_id, int days, int limit, int offset) {
     std::vector<ScaleMeasurement> measurements;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT * FROM scale_measurements "
             "WHERE user_id = $1 AND measured_at >= NOW() - ($2 || ' days')::interval "
@@ -218,7 +250,7 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurements(
 
 std::optional<ScaleMeasurement> PostgresScaleDatabase::getLatestByUser(const std::string& user_id) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT * FROM scale_measurements "
             "WHERE user_id = $1 ORDER BY measured_at DESC LIMIT 1",
@@ -235,7 +267,7 @@ std::optional<ScaleMeasurement> PostgresScaleDatabase::getLatestByUser(const std
 std::vector<ScaleMeasurement> PostgresScaleDatabase::getUnassigned(int limit) {
     std::vector<ScaleMeasurement> measurements;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT * FROM scale_measurements "
             "WHERE user_id IS NULL ORDER BY measured_at DESC LIMIT $1",
@@ -252,7 +284,7 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getUnassigned(int limit) {
 bool PostgresScaleDatabase::assignMeasurement(
     const std::string& measurement_id, const std::string& user_id, double confidence) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         txn.exec_params(
             "UPDATE scale_measurements SET user_id = $1, identification_confidence = $2 "
             "WHERE id = $3",
@@ -270,7 +302,7 @@ bool PostgresScaleDatabase::assignMeasurement(
 
 int PostgresScaleDatabase::getMeasurementCount(const std::string& user_id) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT COUNT(*) FROM scale_measurements WHERE user_id = $1",
             user_id);
@@ -288,7 +320,7 @@ std::vector<DailyAverage> PostgresScaleDatabase::getDailyAverages(
     const std::string& user_id, int days) {
     std::vector<DailyAverage> averages;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT DATE(measured_at) as date, "
             "AVG(weight_kg) as avg_weight_kg, "
@@ -322,7 +354,7 @@ std::vector<WeeklyTrend> PostgresScaleDatabase::getWeeklyTrends(
     const std::string& user_id, int weeks) {
     std::vector<WeeklyTrend> trends;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         auto result = txn.exec_params(
             "SELECT DATE_TRUNC('week', measured_at)::date as week_start, "
             "AVG(weight_kg) as avg_weight_kg, "
@@ -361,7 +393,7 @@ std::vector<WeeklyTrend> PostgresScaleDatabase::getWeeklyTrends(
 std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurementsForML(int min_per_user) {
     std::vector<ScaleMeasurement> measurements;
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         // Only include measurements from users with enough data points
         auto result = txn.exec_params(
             "SELECT m.* FROM scale_measurements m "
@@ -383,7 +415,7 @@ std::vector<ScaleMeasurement> PostgresScaleDatabase::getMeasurementsForML(int mi
 
 bool PostgresScaleDatabase::updateExpectedWeight(const std::string& user_id, double weight_kg) {
     try {
-        pqxx::work txn(*conn_);
+        pqxx::work txn(db());
         txn.exec_params(
             "UPDATE scale_users SET expected_weight_kg = $1, updated_at = NOW() WHERE id = $2",
             weight_kg, user_id);

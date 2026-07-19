@@ -228,3 +228,95 @@ TEST_F(PostgresDatabaseTest, GetUsersDoesNotThrow) {
     // Just verify it doesn't throw — may return empty
     SUCCEED();
 }
+
+// ── Connection resilience ──────────────────────────────────────────────────────
+//
+// Regression test for the bug where PostgresScaleDatabase held ONE pqxx
+// connection created in connect() and every one of its 16 query paths used it
+// directly. When Postgres dropped that connection (restart / idle timeout /
+// network blip) every query failed FOREVER — the live service logged
+// "getMeasurementsForML failed: Lost connection to the database server" once a
+// minute for weeks while the database sat there healthy with 857 measurements.
+//
+// Credentials come from the environment so nothing secret lands in the repo;
+// the test skips when they are absent or the server is unreachable.
+
+namespace {
+
+std::string reconnectTestConnString() {
+    auto env = [](const char* k, const char* dflt) {
+        const char* v = std::getenv(k);
+        return std::string((v && *v) ? v : dflt);
+    };
+    const char* pw = std::getenv("COLADA_DB_PASSWORD");
+    if (!pw || !*pw) return "";
+    return "host=" + env("COLADA_DB_HOST", "localhost") +
+           " port=" + env("COLADA_DB_PORT", "5432") +
+           " dbname=" + env("COLADA_DB_NAME", "colada_scale") +
+           " user=" + env("COLADA_DB_USER", "colada_user") +
+           " password=" + std::string(pw) +
+           " application_name=colada_reconnect_test";
+}
+
+} // namespace
+
+TEST(PostgresReconnectTest, RecoversAfterServerDropsConnection) {
+    const std::string cs = reconnectTestConnString();
+    if (cs.empty()) GTEST_SKIP() << "COLADA_DB_PASSWORD not set - skipping live DB test";
+
+    PostgresScaleDatabase db(cs);
+    if (!db.connect()) GTEST_SKIP() << "PostgreSQL not reachable - skipping";
+
+    const auto before = db.getUsers(false);
+    if (before.empty()) GTEST_SKIP() << "no users in the database to assert against";
+
+    // Drop THIS object's connection server-side, from a separate session. Scoped
+    // by application_name so only our own backend dies, never the live service's.
+    try {
+        pqxx::connection killer(cs);
+        pqxx::work t(killer);
+        t.exec("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+               "WHERE application_name = 'colada_reconnect_test' "
+               "AND pid <> pg_backend_pid()");
+        t.commit();
+    } catch (const std::exception& e) {
+        GTEST_SKIP() << "could not terminate backend: " << e.what();
+    }
+
+    // libpqxx only notices a dead socket on I/O, so the first call is the one
+    // that discovers it and is allowed to fail; the next MUST have reconnected.
+    (void)db.getUsers(false);
+    const auto after = db.getUsers(false);
+
+    EXPECT_EQ(after.size(), before.size())
+        << "connection did not recover after the server dropped it - "
+           "db() failed to reconnect";
+}
+
+TEST(PostgresReconnectTest, SurvivesRepeatedDrops) {
+    const std::string cs = reconnectTestConnString();
+    if (cs.empty()) GTEST_SKIP() << "COLADA_DB_PASSWORD not set - skipping live DB test";
+
+    PostgresScaleDatabase db(cs);
+    if (!db.connect()) GTEST_SKIP() << "PostgreSQL not reachable - skipping";
+    const auto before = db.getUsers(false);
+    if (before.empty()) GTEST_SKIP() << "no users in the database to assert against";
+
+    // The old code recovered zero times; make sure recovery is repeatable and
+    // not a one-shot (e.g. a reconnect that leaves conn_ in a bad state).
+    for (int i = 0; i < 3; ++i) {
+        try {
+            pqxx::connection killer(cs);
+            pqxx::work t(killer);
+            t.exec("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                   "WHERE application_name = 'colada_reconnect_test' "
+                   "AND pid <> pg_backend_pid()");
+            t.commit();
+        } catch (const std::exception&) {
+            GTEST_SKIP() << "could not terminate backend";
+        }
+        (void)db.getUsers(false);
+        EXPECT_EQ(db.getUsers(false).size(), before.size())
+            << "did not recover on drop #" << (i + 1);
+    }
+}

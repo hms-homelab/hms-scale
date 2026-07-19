@@ -39,6 +39,15 @@ private:
     std::string conn_string_;
     std::unique_ptr<pqxx::connection> conn_;
 
+    // Returns a live connection, transparently reconnecting if the server has
+    // dropped it. Every query path goes through this instead of touching conn_
+    // directly: a long-lived pqxx::connection dies on a Postgres restart / idle
+    // timeout, and without this the service failed every query FOREVER (the
+    // whole class shared one connection created once in connect()).
+    // Throws pqxx::broken_connection if reconnecting fails, so the callers'
+    // existing catch blocks report it exactly as before.
+    pqxx::connection& db();
+
     // Templates accept both pqxx 7.x (field/row) and pqxx 8.x (field_ref/row_ref)
     template<typename F>
     std::string fieldOrEmpty(const F& f) const {
