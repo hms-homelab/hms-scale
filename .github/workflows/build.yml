@@ -201,7 +201,15 @@ jobs:
   # ── GitHub Release (on tag push) ──────────────────────────────────
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-and-test]
+    # windows-build belongs here, not just build-and-test: this job downloads
+    # the artifact that one uploads. Without it the release fired the moment the
+    # Linux job finished — on v1.1.1 that was six minutes before the Windows
+    # build ended — so the download always missed. Because it is
+    # continue-on-error and the zip step is gated on its outcome, that failure
+    # was silent, and every release from v1.0.0 to v1.1.1 published with zero
+    # assets. windows-build shares this job's tag condition, so it is never
+    # skipped out from under us here.
+    needs: [build-and-test, windows-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
