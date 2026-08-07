@@ -1,7 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 import {
   ScaleUser,
   ScaleMeasurement,
@@ -17,6 +17,13 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class ColadaApiService {
+  /**
+   * How many measurements are waiting to be claimed. Kept here so the nav bar
+   * can badge it without every consumer refetching; getUnassigned() below is
+   * the single writer.
+   */
+  readonly unassignedCount = signal(0);
+
   constructor(private http: HttpClient) {}
 
   // --- Users ---
@@ -50,8 +57,14 @@ export class ColadaApiService {
 
   getUnassigned(): Observable<ScaleMeasurement[]> {
     return this.http.get<{ measurements: ScaleMeasurement[]; count: number }>('/api/measurements/unassigned').pipe(
+      tap(r => this.unassignedCount.set(r.count)),
       map(r => r.measurements)
     );
+  }
+
+  /** Fire-and-forget refresh of unassignedCount, for the nav badge. */
+  refreshUnassignedCount(): void {
+    this.getUnassigned().subscribe({ error: () => {} });
   }
 
   assignMeasurement(measurementId: string, userId: string): Observable<void> {
