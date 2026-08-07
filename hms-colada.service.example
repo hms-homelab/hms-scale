@@ -1,6 +1,10 @@
 [Unit]
 Description=HMS-Colada Smart Scale Service
 After=network.target postgresql.service
+# Only affects startup order when mDNS is in use; the service publishes fine
+# either way, since it waits for avahi-daemon rather than giving up on it.
+Wants=avahi-daemon.service
+After=avahi-daemon.service
 
 [Service]
 Type=simple

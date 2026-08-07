@@ -19,6 +19,10 @@
     "scale_topic": "giraffe_scale/measurement",
     "user_selector_topic": "colada_scale/user_selector/set"
   },
+  "mdns": {
+    "enabled": true,
+    "hostname": "hms-scale"
+  },
   "ml_training": {
     "enabled": false,
     "schedule": "weekly",

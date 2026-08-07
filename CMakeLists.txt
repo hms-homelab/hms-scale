@@ -1,5 +1,19 @@
 cmake_minimum_required(VERSION 3.16)
-project(hms_colada CXX)
+
+# The VERSION file is the single source of truth for the version string, so the
+# binary cannot drift from the tag the way it had (VERSION said 1.1.0 while
+# every log line still announced 1.0.0). CMAKE_CONFIGURE_DEPENDS matters here:
+# without it CMake reads the file once at configure time and a later bump does
+# not retrigger configure, so the build quietly keeps stamping the old value.
+file(READ "${CMAKE_CURRENT_LIST_DIR}/VERSION" _version_raw)
+string(STRIP "${_version_raw}" HMS_COLADA_VERSION)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+             "${CMAKE_CURRENT_LIST_DIR}/VERSION")
+if(NOT HMS_COLADA_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must be MAJOR.MINOR.PATCH, got '${HMS_COLADA_VERSION}'")
+endif()
+
+project(hms_colada VERSION ${HMS_COLADA_VERSION} LANGUAGES CXX)
 
 # C++20 on MSVC (needed for designated initializers in hms-shared/db),
 # C++17 on Linux (system pqxx is built with C++17 — ABI mismatch if we use C++20)
@@ -127,6 +141,29 @@ else()
     message(STATUS "BLE: Disabled (pass -DBUILD_WITH_BLE=ON to enable)")
 endif()
 
+# mDNS support (optional, requires libavahi-client). Defaults ON so that the
+# hms-scale.local:8889 the ESP firmware ships with actually resolves, but Avahi
+# is Linux-only and this must never be the reason someone's build fails: if the
+# headers are absent the feature quietly turns itself off. Pass
+# -DBUILD_WITH_MDNS=OFF to opt out deliberately.
+option(BUILD_WITH_MDNS "Publish the service over mDNS/zeroconf via Avahi" ON)
+if(BUILD_WITH_MDNS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_library(AVAHI_CLIENT_LIB avahi-client)
+    find_library(AVAHI_COMMON_LIB avahi-common)
+    find_path(AVAHI_INCLUDE_DIR avahi-client/publish.h)
+    if(AVAHI_CLIENT_LIB AND AVAHI_COMMON_LIB AND AVAHI_INCLUDE_DIR)
+        message(STATUS "mDNS: Enabled (${AVAHI_CLIENT_LIB})")
+    else()
+        message(STATUS "mDNS: Disabled (libavahi-client-dev not found)")
+        set(BUILD_WITH_MDNS OFF)
+    endif()
+elseif(BUILD_WITH_MDNS)
+    message(STATUS "mDNS: Disabled (Avahi is Linux-only, this is ${CMAKE_SYSTEM_NAME})")
+    set(BUILD_WITH_MDNS OFF)
+else()
+    message(STATUS "mDNS: Disabled (BUILD_WITH_MDNS=OFF)")
+endif()
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -147,6 +184,10 @@ if(BUILD_WITH_BLE)
     list(APPEND SOURCES src/ble/BleScaleClient.cpp)
 endif()
 
+if(BUILD_WITH_MDNS)
+    list(APPEND SOURCES src/services/MdnsPublisher.cpp)
+endif()
+
 # Executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -154,6 +195,9 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     include
 )
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    HMS_COLADA_VERSION="${HMS_COLADA_VERSION}")
 
 # Link libraries
 if(MSVC)
@@ -189,6 +233,12 @@ endif()
 
 if(BUILD_WITH_WEB)
     target_link_libraries(${PROJECT_NAME} Drogon::Drogon)
+endif()
+
+if(BUILD_WITH_MDNS)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${AVAHI_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} ${AVAHI_CLIENT_LIB} ${AVAHI_COMMON_LIB})
+    target_compile_definitions(${PROJECT_NAME} PUBLIC WITH_MDNS=1)
 endif()
 
 if(BUILD_WITH_BLE)

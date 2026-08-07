@@ -38,6 +38,15 @@ struct AppConfig {
         int reconnect_delay_s = 30;
     } ble;
 
+    // mDNS / zeroconf. Lets the ESP firmware reach the service by name instead
+    // of a hardcoded IP, which is why the firmware ships hms-scale.local:8889
+    // as its default. Publishing is skipped entirely on platforms without
+    // Avahi, so this section is inert on Windows and in bridged containers.
+    struct Mdns {
+        bool enabled = true;
+        std::string hostname = "hms-scale"; // published as <hostname>.local
+    } mdns;
+
     // ML Training
     struct MlTraining {
         bool enabled = false;
@@ -121,6 +130,15 @@ struct AppConfig {
             if (!v.empty()) ble.scale_mac = v;
         }
 
+        // mDNS. Defaults to true, so unlike the opt-in flags above this one
+        // has to be switchable OFF from the environment as well as on.
+        if (env("MDNS_ENABLED") == "false") mdns.enabled = false;
+        if (env("MDNS_ENABLED") == "true")  mdns.enabled = true;
+        if (mdns.hostname == "hms-scale") {
+            auto v = env("MDNS_HOSTNAME");
+            if (!v.empty()) mdns.hostname = v;
+        }
+
         // ML Training
         if (!ml_training.enabled && env("ML_ENABLED") == "true")
             ml_training.enabled = true;
@@ -196,6 +214,12 @@ struct AppConfig {
                 if (b.contains("reconnect_delay_s")) config.ble.reconnect_delay_s = b["reconnect_delay_s"];
             }
 
+            if (j.contains("mdns")) {
+                auto& m = j["mdns"];
+                if (m.contains("enabled"))   config.mdns.enabled  = m["enabled"];
+                if (m.contains("hostname"))  config.mdns.hostname = m["hostname"];
+            }
+
             if (j.contains("ml_training")) {
                 auto& ml = j["ml_training"];
                 if (ml.contains("enabled"))           config.ml_training.enabled = ml["enabled"];
@@ -239,6 +263,9 @@ struct AppConfig {
             j["ble"]["scale_mac"]         = ble.scale_mac;
             j["ble"]["reconnect_delay_s"] = ble.reconnect_delay_s;
 
+            j["mdns"]["enabled"]  = mdns.enabled;
+            j["mdns"]["hostname"] = mdns.hostname;
+
             j["ml_training"]["enabled"] = ml_training.enabled;
             j["ml_training"]["schedule"] = ml_training.schedule;
             j["ml_training"]["model_dir"] = ml_training.model_dir;
@@ -274,6 +301,9 @@ struct AppConfig {
         j["mqtt"]["client_id"] = mqtt.client_id;
         j["mqtt"]["scale_topic"] = mqtt.scale_topic;
         j["mqtt"]["user_selector_topic"] = mqtt.user_selector_topic;
+
+        j["mdns"]["enabled"]  = mdns.enabled;
+        j["mdns"]["hostname"] = mdns.hostname;
 
         j["ml_training"]["enabled"] = ml_training.enabled;
         j["ml_training"]["schedule"] = ml_training.schedule;

@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjsoncpp-dev \
     libpaho-mqtt-dev \
     libpaho-mqttpp-dev \
+    libavahi-client-dev \
     nlohmann-json3-dev \
     libspdlog-dev \
     libsqlite3-dev \
@@ -66,6 +67,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfmt10 \
     libdrogon1t64 \
     libtrantor1 \
+    libavahi-client3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -r -u 1000 -m -s /bin/bash colada

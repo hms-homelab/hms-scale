@@ -63,7 +63,9 @@ Both modes feed into the same identification and analytics pipeline.
 
 ```bash
 # Dependencies (Debian/Ubuntu)
+# libavahi-client-dev is optional — without it mDNS just turns itself off
 sudo apt install build-essential cmake libcurl4-openssl-dev libpq-dev \
+    libavahi-client-dev \
     libpqxx-dev libssl-dev libjsoncpp-dev libpaho-mqtt-dev \
     libpaho-mqttpp-dev nlohmann-json3-dev libspdlog-dev libdrogon-dev \
     uuid-dev libbrotli-dev zlib1g-dev
@@ -131,6 +133,52 @@ Copy `config.json.example` to `~/.hms-colada/config.json`, or use environment va
 | `ML_SCHEDULE` | weekly | Training schedule (daily/weekly/monthly) |
 | `BLE_ENABLED` | false | Enable direct BLE scale connectivity |
 | `BLE_SCALE_MAC` | D0:4D:00:51:4F:8F | Etekcity scale MAC address |
+| `MDNS_ENABLED` | true | Publish the service over mDNS (see below) |
+| `MDNS_HOSTNAME` | hms-scale | Name to publish, as `<name>.local` |
+
+### mDNS / finding the server without an IP
+
+The ESP gateway ships pointing at `hms-scale.local:8889` rather than an address
+that only exists on one person's network, so the service publishes that name
+itself. On startup it announces two things over Avahi:
+
+- **`_hms-scale._tcp`** — a service record carrying the port and a TXT
+  `path=/api/webhook/measurement`. This is the one to discover by: browsing for
+  a service type needs no agreed-upon hostname, so it can neither collide nor
+  go stale.
+- **`hms-scale.local`** — a CNAME onto whatever this machine already calls
+  itself. This is the compatibility record, for clients that resolve a fixed
+  name. It is a CNAME rather than an A record so it follows the host's own
+  address across DHCP changes.
+
+Verify with `avahi-browse -rt _hms-scale._tcp`, or from macOS with
+`dns-sd -B _hms-scale._tcp` and `ping hms-scale.local`.
+
+**This is a convenience, never a dependency.** If Avahi is missing, not
+running, or unreachable, the service logs one line and carries on; point your
+clients at an address by hand. It is off in three situations worth knowing:
+
+- **Non-Linux builds.** Avahi is Linux-only, so `BUILD_WITH_MDNS` turns itself
+  off elsewhere and the code is not compiled in. Windows builds are unaffected.
+- **Bridged Docker containers.** mDNS is link-local multicast and a bridged
+  container cannot reach the LAN with it. Run with `--network host` and mount
+  the D-Bus socket to publish from a container:
+  ```bash
+  docker run --network host -v /var/run/dbus:/var/run/dbus ...
+  ```
+- **`MDNS_ENABLED=false`**, or `-DBUILD_WITH_MDNS=OFF` at build time.
+
+If two hms-scale installs share a network, the two records behave differently
+and it is worth knowing which:
+
+- The **service instance** collides, so Avahi renames the second to
+  `hms-scale #2` and logs it. Discovery still works and still points somewhere
+  unambiguous.
+- The **`hms-scale.local` CNAME** is published allowing duplicates, so both
+  hosts answer for it and a gateway gets whichever replies first.
+
+So give a second install a distinct `MDNS_HOSTNAME`, or point its gateway at
+the service record rather than the name.
 
 Configuration can also be managed from the web UI at `/settings`.
 

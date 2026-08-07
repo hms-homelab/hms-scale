@@ -16,6 +16,10 @@
 #include "ble/BleScaleClient.h"
 #endif
 
+#ifdef WITH_MDNS
+#include "services/MdnsPublisher.h"
+#endif
+
 #ifdef BUILD_WITH_WEB
 #include <drogon/drogon.h>
 #include "controllers/ColadaController.h"
@@ -34,7 +38,7 @@ static void signalHandler(int sig) {
 }
 
 int main() {
-    spdlog::info("hms-colada v1.0.0 starting...");
+    spdlog::info("hms-colada v{} starting...", HMS_COLADA_VERSION);
 
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
@@ -202,11 +206,25 @@ int main() {
         .setDocumentRoot(config.static_dir)
         .setStaticFilesCacheTime(3600);
 
+    // ── mDNS ────────────────────────────────────────────────────────────
+    // Announced once the listening port is settled. Best-effort throughout:
+    // a failure here never stops the service, it just means clients have to be
+    // pointed at an address by hand.
+#ifdef WITH_MDNS
+    std::unique_ptr<hms_colada::MdnsPublisher> mdns;
+    if (config.mdns.enabled) {
+        mdns = std::make_unique<hms_colada::MdnsPublisher>(config.mdns.hostname, config.web_port);
+        mdns->start();
+    } else {
+        spdlog::info("mDNS: disabled by config");
+    }
+#endif
+
     spdlog::info("Starting web server on port {}", config.web_port);
-    spdlog::info("hms-colada v1.0.0 ready");
+    spdlog::info("hms-colada v{} ready", HMS_COLADA_VERSION);
     drogon::app().run();
 #else
-    spdlog::info("hms-colada v1.0.0 ready (no web server)");
+    spdlog::info("hms-colada v{} ready (no web server)", HMS_COLADA_VERSION);
     while (g_running) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
