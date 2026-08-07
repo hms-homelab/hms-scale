@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v1.2.0 — 2026-08-07
+
+### Added
+- **An Unassigned page, so claiming a measurement no longer needs curl.** `GET /api/measurements/unassigned` and `POST /api/measurements/{id}/assign` have existed since v1.0.0 and `colada-api.service.ts` has had typed wrappers for both, but no component ever called them. The new `/unassigned` route lists pending measurements with timestamp, weight and impedance, each row carrying a picker of active users and an Assign button that stays disabled until a user is chosen and while the request is in flight. The nav item badges the count when it is non-zero.
+- Timestamps are normalised before parsing — PostgreSQL returns `2026-08-07 10:27:54-04`, with a space instead of a `T` and a bare two-digit offset, both of which Safari rejects and which would otherwise render as `Invalid Date`.
+
 ## v1.1.2 — 2026-08-07
 
 ### Fixed
