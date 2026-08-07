@@ -182,6 +182,15 @@ std::optional<ScaleMeasurement> PostgresScaleDatabase::createMeasurement(const S
 
         pqxx::result result;
         if (m.user_id.empty()) {
+            // identification_confidence must be NULL here, not 0. The table's
+            // valid_user_or_unassigned constraint requires user_id and
+            // identification_confidence to be null together:
+            //   CHECK ((user_id IS NOT NULL AND identification_confidence IS NOT NULL)
+            //       OR (user_id IS     NULL AND identification_confidence IS     NULL))
+            // Passing the struct's default 0.0 alongside a null user_id violated
+            // it, so every unidentified weigh-in was rejected and lost — and
+            // /api/measurements/unassigned, which exists precisely to let one be
+            // claimed afterwards, could never receive anything new.
             result = txn.exec_params(sql,
                 nullptr, m.weight_kg, m.weight_lbs, m.impedance_ohm,
                 m.composition.body_fat_percentage, m.composition.lean_mass_kg,
@@ -189,7 +198,7 @@ std::optional<ScaleMeasurement> PostgresScaleDatabase::createMeasurement(const S
                 m.composition.body_water_percentage, m.composition.visceral_fat_rating,
                 m.composition.bmi, m.composition.bmr_kcal,
                 m.composition.metabolic_age, m.composition.protein_percentage,
-                m.identification_confidence, m.identification_method,
+                nullptr, m.identification_method,
                 m.measured_at.empty() ? "NOW()" : m.measured_at);
         } else {
             result = txn.exec_params(sql,

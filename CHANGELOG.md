@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v1.1.2 — 2026-08-07
+
+### Fixed
+- **Every unidentified weigh-in was rejected and lost.** `createMeasurement` bound `nullptr` for `user_id` when no user matched, but still passed `identification_confidence` as the struct's default `0.0`. The table's `valid_user_or_unassigned` constraint requires the two to be null together, so the insert failed and the reading was discarded — the service logged "No user identified - storing as unassigned" immediately followed by "Failed to store measurement". This also starved `GET /api/measurements/unassigned` and `POST /api/measurements/{id}/assign`, which exist precisely so an unmatched reading can be claimed afterwards: they have had nothing new to work with since the C++ service took over in April 2026.
+- **The release job published before the Windows build finished.** It declared `needs: [build-and-test]` but downloads the artifact `windows-build` uploads, so it started as soon as the Linux job ended — six minutes early on the v1.1.1 run — and the download always missed. Because that step is `continue-on-error` and the zip step is gated on its outcome, the failure was silent and every release from v1.0.0 through v1.1.1 published with zero assets.
+
 ## v1.1.1 — 2026-08-07
 
 ### Security
