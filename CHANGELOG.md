@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## v1.1.1 — 2026-08-07
+
+### Security
+- **Removed live credentials from the tracked `hms-colada.service`.** The unit file carried a real `DB_PASSWORD`, `MQTT_USER` and `MQTT_PASSWORD`, plus internal host addresses, and this repository is public — the values were fetchable without authentication. They are now placeholders, with a pointer to `EnvironmentFile=` for keeping real secrets in an untracked, mode-600 file. Note that removing them from HEAD does not remove them from history; anything that was in there needs rotating.
+
+### Added
+- **mDNS publishing, so `hms-scale.local:8889` actually resolves.** The ESP gateway firmware ships with that as its default server, but nothing ever published the name — a fresh install of both halves could not talk to each other until the user found the server's IP by hand. `MdnsPublisher` now announces two records through Avahi on startup: a `_hms-scale._tcp` service carrying the port and a TXT `path=/api/webhook/measurement`, and a `hms-scale.local` CNAME onto the machine's existing name. The service record is the one clients should discover by, since browsing a service type cannot collide with anything; the CNAME exists for firmware that resolves a fixed name, and is a CNAME rather than an A record so it follows the host across DHCP changes. New `mdns` config section plus `MDNS_ENABLED` / `MDNS_HOSTNAME`, defaulting to on.
+- Publishing is strictly best-effort and never blocks startup: missing Avahi, a stopped daemon, or no D-Bus at all logs one line and moves on. `BUILD_WITH_MDNS` defaults ON but disables itself on non-Linux platforms and when `libavahi-client-dev` is absent, so it cannot break a Windows build or an existing Debian one. Name collisions between two installs on one network are resolved by Avahi's usual rename and logged.
+
 ### Fixed
 - **PostgreSQL connection never recovered after the server dropped it.** `PostgresScaleDatabase` created a single `pqxx::connection` in `connect()` and all 16 query methods used it directly, with no health check and no reconnect. A Postgres restart, idle timeout, or network blip therefore broke *every* query permanently — the live service logged `getMeasurementsForML failed: Lost connection to the database server` once a minute for weeks and reported "No measurements available for training" while the database sat healthy with 857 measurements. Queries now go through a `db()` accessor that transparently reconnects, and `createMeasurement` retries once on a broken connection so a weigh-in — which the scale reports exactly once — is not silently lost. Adds regression tests that drop the connection server-side and assert recovery, including across repeated drops.
 
