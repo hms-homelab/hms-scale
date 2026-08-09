@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## v1.2.1 — 2026-08-09
+
+### Fixed
+- **Pick up the DbPool slot-leak fix (hms-shared v1.6.6 → v1.6.9).** In the pinned v1.6.6, `DbPool::acquire()` popped a connection whose health check failed and then threw without returning the slot, so every failed reconnect permanently shrank the pool. A database outage drained it completely: once all slots were gone the queue stayed empty and every query blocked for the full 10s before reporting `DB pool exhausted — no connection available after 10s`, **even after PostgreSQL came back**. Only a restart recovered it. hms-firetv and hms-portal were both caught by the equivalent bug during the 2026-08-06 outage — hms-portal sat degraded for nine days. colada was on the same leaky pool and had simply not been unlucky yet.
+
 ## v1.2.0 — 2026-08-07
 
 ### Added
