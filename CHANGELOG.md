@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## v1.2.2 - 2026-10-04
+
+### Fixed
+- **Bumped hms-shared from v1.6.9 to v1.6.18**, which fixes a deadlock in `hms::MqttClient`: a subscribe made while an earlier subscribe's retained messages were still arriving could hang the client for good, and with it every later publish and delivery. This service subscribes to two topics at startup. The bump also brings the self-healing `DbPool` reconnect (v1.6.13). No API changes affect this service.
+
 ## v1.2.1 — 2026-08-09
 
 ### Fixed
